@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sistema de Gestão de Clientes</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    .fade-in { animation: fadeIn 0.3s ease-in; }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+  </style>
+</head>
+<body class="bg-gray-50">
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+    const API_URL = 'http://37.60.235.47:3001/api';
+
+    const api = {
+      async request(endpoint, options = {}) {
+        const token = localStorage.getItem('user_token');
+        const headers = {
+          'Content-Type': 'application/json',
+          ...(token && { Authorization: `Bearer ${token}` }),
+          ...options.headers
+        };
+        const response = await fetch(`${API_URL}${endpoint}`, { ...options, headers });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Erro');
+        return data;
+      },
+      login: (email, password) => api.request('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
+      getMe: () => api.request('/auth/me'),
+      
+      // Planos
+      getPlans: () => api.request('/plans'),
+      createPlan: (data) => api.request('/plans', { method: 'POST', body: JSON.stringify(data) }),
+      updatePlan: (id, data) => api.request(`/plans/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+      deletePlan: (id) => api.request(`/plans/${id}`, { method: 'DELETE' }),
+      
+      // Servidores
+      getServers: () => api.request('/servers'),
+      createServer: (data) => api.request('/servers', { method: 'POST', body: JSON.stringify(data) }),
+      updateServer: (id, data) => api.request(`/servers/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+      deleteServer: (id) => api.request(`/servers/${id}`, { method: 'DELETE' }),
+      
+      // Clientes
+      getClients: (params) => {
+        const query = new URLSearchParams(params).toString();
+        return api.request(`/clients?${query}`);
+      },
+      getClientStats: () => api.request('/clients/stats'),
+      createClient: (data) => api.request('/clients', { method: 'POST', body: JSON.stringify(data) }),
+      updateClient: (id, data) => api.request(`/clients/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+      deleteClient: (id) => api.request(`/clients/${id}`, { method: 'DELETE' })
+    };
+
+    // Login Component
+    function Login({ onLogin }) {
+      const [email, setEmail] = useState('');
+      const [password, setPassword] = useState('');
+      const [loading, setLoading] = useState(false);
+      const [error, setError] = useState('');
+
+      const handleSubmit = async (e) => {
+        e.preventDefault();
+        setLoading(true);
+        setError('');
+        try {
+          const data = await api.login(email, password);
+          if (data.user.role === 'admin') {
+            setError('Administradores devem usar o painel admin');
+            return;
+          }
+          localStorage.setItem('user_token', data.token);
+          localStorage.setItem('user_data', JSON.stringify(data.user));
+          onLogin(data.user);
+        } catch (err) {
+          setError(err.message);
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-500 to-indigo-600 px-4">
+          <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md fade-in">
+            <div className="text-center mb-8">
+              <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full mx-auto mb-4 flex items-center justify-center text-white text-3xl font-bold">
+                GC
+              </div>
+              <h1 className="text-3xl font-bold text-gray-800">Bem-vindo</h1>
+              <p className="text-gray-600 mt-2">Sistema de Gestão de Clientes</p>
+            </div>
+            <form onSubmit={handleSubmit} className="space-y-6">
+              {error && <div className="bg-red-50 border-l-4 border-red-500 text-red-700 p-4 rounded">{error}</div>}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
+                <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" required />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Senha</label>
+                <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" required />
+              </div>
+              <button type="submit" disabled={loading} className="w-full bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white font-semibold py-3 rounded-lg transition disabled:opacity-50">
+                {loading ? 'Entrando...' : 'Entrar'}
+              </button>
+            </form>
+          </div>
+        </div>
+      );
+    }
+
+    // Modal Planos
+    function PlansModal({ plans, onClose, onRefresh }) {
+      const [formData, setFormData] = useState({ name: '', duration_months: '1' });
+      const [loading, setLoading] = useState(false);
+
+      const handleSubmit = async (e) => {
+        e.preventDefault();
+        setLoading(true);
+        try {
+          await api.createPlan(formData);
+          setFormData({ name: '', duration_months: '1' });
+          onRefresh();
+        } catch (error) {
+          alert(error.message);
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      const handleDelete = async (id) => {
+        if (!confirm('Excluir este plano?')) return;
+        try {
+          await api.deletePlan(id);
+          onRefresh();
+        } catch (error) {
+          alert(error.message);
+        }
+      };
+
+      return (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-screen overflow-y-auto">
+            <div className="p-6 border-b flex justify-between items-center">
+              <h3 className="text-xl font-bold">Gerenciar Planos</h3>
+              <button onClick={onClose} className="text-gray-500 hover:text-gray-700">✕</button>
+            </div>
+            <div className="p-6">
+              <form onSubmit={handleSubmit} className="mb-6">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Nome do Plano</label>
+                    <input type="text" value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} className="w-full px-4 py-2 border rounded-lg" placeholder="1 mês 2 telas" required />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Duração (meses)</label>
+                    <input type="number" min="1" value={formData.duration_months} onChange={(e) => setFormData({...formData, duration_months: e.target.value})} className="w-full px-4 py-2 border rounded-lg" required />
+                  </div>
+                </div>
+                <button type="submit" disabled={loading} className="mt-4 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
+                  {loading ? 'Adicionando...' : 'Adicionar Plano'}
+                </button>
+              </form>
+              <div className="space-y-2">
+                {plans.map(plan => (
+                  <div key={plan.id} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                    <div>
+                      <span className="font-medium">{plan.name}</span>
+                      <span className="text-sm text-gray-600 ml-2">({plan.duration_months} {plan.duration_months === 1 ? 'mês' : 'meses'})</span>
+                    </div>
+                    <button onClick={() => handleDelete(plan.id)} className="text-red-600 hover:text-red-800">Excluir</button>
+                  </div>
+                ))}
+                {plans.length === 0 && <p className="text-gray-500 text-center py-4">Nenhum plano cadastrado</p>}
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // Modal Servidores
+    function ServersModal({ servers, onClose, onRefresh }) {
+      const [formData, setFormData] = useState({ name: '', cost_per_screen: '' });
+      const [loading, setLoading] = useState(false);
+
+      const handleSubmit = async (e) => {
+        e.preventDefault();
+        setLoading(true);
+        try {
+          await api.createServer(formData);
+          setFormData({ name: '', cost_per_screen: '' });
+          onRefresh();
+        } catch (error) {
+          alert(error.message);
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      const handleDelete = async (id) => {
+        if (!confirm('Excluir este servidor?')) return;
+        try {
+          await api.deleteServer(id);
+          onRefresh();
+        } catch (error) {
+          alert(error.message);
+        }
+      };
+
+      return (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-screen overflow-y-auto">
+            <div className="p-6 border-b flex justify-between items-center">
+              <h3 className="text-xl font-bold">Gerenciar Servidores</h3>
+              <button onClick={onClose} className="text-gray-500 hover:text-gray-700">✕</button>
+            </div>
+            <div className="p-6">
+              <form onSubmit={handleSubmit} className="mb-6">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Nome do Servidor</label>
+                    <input type="text" value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} className="w-full px-4 py-2 border rounded-lg" placeholder="Netflix" required />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Custo por Tela (R$)</label>
+                    <input type="number" step="0.01" min="0" value={formData.cost_per_screen} onChange={(e) => setFormData({...formData, cost_per_screen: e.target.value})} className="w-full px-4 py-2 border rounded-lg" placeholder="10.00" required />
+                  </div>
+                </div>
+                <button type="submit" disabled={loading} className="mt-4 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
+                  {loading ? 'Adicionando...' : 'Adicionar Servidor'}
+                </button>
+              </form>
+              <div className="space-y-2">
+                {servers.map(server => (
+                  <div key={server.id} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                    <div>
+                      <span className="font-medium">{server.name}</span>
+                      <span className="text-sm text-gray-600 ml-2">R$ {parseFloat(server.cost_per_screen).toFixed(2)}/tela</span>
+                    </div>
+                    <button onClick={() => handleDelete(server.id)} className="text-red-600 hover:text-red-800">Excluir</button>
+                  </div>
+                ))}
+                {servers.length === 0 && <p className="text-gray-500 text-center py-4">Nenhum servidor cadastrado</p>}
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // Modal Cliente
+    function ClientModal({ client, plans, servers, onClose, onSave }) {
+      const isEdit = !!client;
+      const [loading, setLoading] = useState(false);
+      const [formData, setFormData] = useState({
+        name: client?.name || '',
+        whatsapp_number: client?.whatsapp_number || '',
+        plan_id: client?.plan_id || '',
+        server_id: client?.server_id || '',
+        price_value: client?.price_value || '',
+        due_date: client?.due_date ? client.due_date.split('T')[0] : '',
+        username: client?.username || '',
+        password: client?.password || '',
+        mac_address: client?.mac_address || '',
+        device_key: client?.device_key || '',
+        notes: client?.notes || '',
+        is_active: client?.is_active ?? true
+      });
+
+      const handleSubmit = async (e) => {
+        e.preventDefault();
+        setLoading(true);
+        try {
+          if (isEdit) {
+            await api.updateClient(client.id, formData);
+          } else {
+            await api.createClient(formData);
+          }
+          onSave();
+        } catch (error) {
+          alert(error.message);
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      return (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-screen overflow-y-auto">
+            <div className="p-6 border-b flex justify-between items-center">
+              <h3 className="text-xl font-bold">{isEdit ? 'Editar Cliente' : 'Novo Cliente'}</h3>
+              <button onClick={onClose} className="text-gray-500 hover:text-gray-700">✕</button>
+            </div>
+            <form onSubmit={handleSubmit} className="p-6">
+              <div className="space-y-4">
+                <div className="bg-blue-50 border-l-4 border-blue-500 p-4 mb-4">
+                  <p className="text-sm font-medium text-blue-800">Campos Obrigatórios</p>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Nome *</label>
+                    <input type="text" value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} className="w-full px-4 py-2 border rounded-lg" placeholder="Isaac Mendes" required />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-2">WhatsApp *</label>
+                    <input type="text" value={formData.whatsapp_number} onChange={(e) => setFormData({...formData, whatsapp_number: e.target.value})} className="w-full px-4 py-2 border rounded-lg" placeholder="5585940219 63" required />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Plano *</label>
+                    <select value={formData.plan_id} onChange={(e) => setFormData({...formData, plan_id: e.target.value})} className="w-full px-4 py-2 border rounded-lg" required>
+                      <option value="">Selecione</option>
+                      {plans.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Servidor *</label>
+                    <select value={formData.server_id} onChange={(e) => setFormData({...formData, server_id: e.target.value})} className="w-full px-4 py-2 border rounded-lg" required>
+                      <option value="">Selecione</option>
+                      {servers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Valor (R$) *</label>
+                    <input type="number" step="0.01" min="0" value={formData.price_value} onChange={(e) => setFormData({...formData, price_value: e.target.value})} className="w-full px-4 py-2 border rounded-lg" placeholder="25.00" required />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Vencimento *</label>
+                    <input type="date" value={formData.due_date} onChange={(e) => setFormData({...formData, due_date: e.target.value})} className="w-full px-4 py-2 border rounded-lg" required />
+                  </div>
+                </div>
+
+                <div className="bg-gray-50 border-l-4 border-gray-400 p-4 my-4">
+                  <p className="text-sm font-medium text-gray-700">Campos Opcionais</p>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Usuário</label>
+                    <input type="text" value={formData.username} onChange={(e) => setFormData({...formData, username: e.target.value})} className="w-full px-4 py-2 border rounded-lg" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Senha</label>
+                    <input type="text" value={formData.password} onChange={(e) => setFormData({...formData, password: e.target.value})} className="w-full px-4 py-2 border rounded-lg" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-2">MAC Address</label>
+                    <input type="text" value={formData.mac_address} onChange={(e) => setFormData({...formData, mac_address: e.target.value})} className="w-full px-4 py-2 border rounded-lg" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Device Key</label>
+                    <input type="text" value={formData.device_key} onChange={(e) => setFormData({...formData, device_key: e.target.value})} className="w-full px-4 py-2 border rounded-lg" />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-2">Observações</label>
+                  <textarea value={formData.notes} onChange={(e) => setFormData({...formData, notes: e.target.value})} className="w-full px-4 py-2 border rounded-lg" rows="3"></textarea>
+                </div>
+
+                {isEdit && (
+                  <div className="flex items-center">
+                    <input type="checkbox" checked={formData.is_active} onChange={(e) => setFormData({...formData, is_active: e.target.checked})} className="w-4 h-4 text-blue-600 rounded" />
+                    <label className="ml-2 text-sm font-medium">Cliente ativo</label>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex gap-3 mt-6">
+                <button type="button" onClick={onClose} className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50">Cancelar</button>
+                <button type="submit" disabled={loading} className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
+                  {loading ? 'Salvando...' : 'Salvar'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      );
+    }
+
+    // Dashboard Principal
+    function Dashboard({ user, onLogout }) {
+      const [view, setView] = useState('clients');
+      const [clients, setClients] = useState([]);
+      const [stats, setStats] = useState(null);
+      const [plans, setPlans] = useState([]);
+      const [servers, setServers] = useState([]);
+      const [loading, setLoading] = useState(true);
+      const [search, setSearch] = useState('');
+      const [statusFilter, setStatusFilter] = useState('');
+      const [showModal, setShowModal] = useState(null);
+      const [editingClient, setEditingClient] = useState(null);
+
+      useEffect(() => {
+        loadData();
+      }, [search, statusFilter]);
+
+      const loadData = async () => {
+        try {
+          const [clientsData, statsData, plansData, serversData] = await Promise.all([
+            api.getClients({ search, status: statusFilter }),
+            api.getClientStats(),
+            api.getPlans(),
+            api.getServers()
+          ]);
+          setClients(clientsData);
+          setStats(statsData);
+          setPlans(plansData);
+          setServers(serversData);
+        } catch (error) {
+          console.error('Erro ao carregar dados:', error);
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      const handleDeleteClient = async (id) => {
+        if (!confirm('Excluir este cliente?')) return;
+        try {
+          await api.deleteClient(id);
+          loadData();
+        } catch (error) {
+          alert(error.message);
+        }
+      };
+
+      const getStatusBadge = (client) => {
+        if (!client.is_active) return <span className="px-2 py-1 bg-gray-200 text-gray-700 rounded text-xs">Inativo</span>;
+        if (client.is_expired) return <span className="px-2 py-1 bg-red-200 text-red-700 rounded text-xs">Vencido</span>;
+        if (client.days_until_due <= 7) return <span className="px-2 py-1 bg-yellow-200 text-yellow-700 rounded text-xs">Vence em {client.days_until_due}d</span>;
+        return <span className="px-2 py-1 bg-green-200 text-green-700 rounded text-xs">Ativo</span>;
+      };
+
+      return (
+        <div className="min-h-screen bg-gray-50">
+          <header className="bg-white shadow">
+            <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
+              <h1 className="text-xl font-bold text-gray-800">{user.name}</h1>
+              <div className="flex gap-2">
+                <button onClick={() => setShowModal('plans')} className="px-4 py-2 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg">Planos</button>
+                <button onClick={() => setShowModal('servers')} className="px-4 py-2 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg">Servidores</button>
+                <button onClick={onLogout} className="px-4 py-2 text-sm bg-red-500 text-white rounded-lg hover:bg-red-600">Sair</button>
+              </div>
+            </div>
+          </header>
+
+          <main className="max-w-7xl mx-auto px-4 py-8">
+            {stats && (
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+                <div className="bg-white rounded-lg shadow p-6">
+                  <p className="text-gray-600 text-sm">Total</p>
+                  <p className="text-3xl font-bold mt-2">{stats.total}</p>
+                </div>
+                <div className="bg-white rounded-lg shadow p-6">
+                  <p className="text-gray-600 text-sm">Ativos</p>
+                  <p className="text-3xl font-bold mt-2 text-green-600">{stats.active}</p>
+                </div>
+                <div className="bg-white rounded-lg shadow p-6">
+                  <p className="text-gray-600 text-sm">Vencidos</p>
+                  <p className="text-3xl font-bold mt-2 text-red-600">{stats.expired}</p>
+                </div>
+                <div className="bg-white rounded-lg shadow p-6">
+                  <p className="text-gray-600 text-sm">Vencem em 7 dias</p>
+                  <p className="text-3xl font-bold mt-2 text-yellow-600">{stats.expiring_soon}</p>
+                </div>
+              </div>
+            )}
+
+            <div className="bg-white rounded-lg shadow">
+              <div className="p-6 border-b">
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                  <h2 className="text-xl font-bold">Clientes</h2>
+                  <div className="flex gap-3">
+                    <input type="text" placeholder="Buscar..." value={search} onChange={(e) => setSearch(e.target.value)} className="px-4 py-2 border rounded-lg" />
+                    <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="px-4 py-2 border rounded-lg">
+                      <option value="">Todos</option>
+                      <option value="active">Ativos</option>
+                      <option value="expired">Vencidos</option>
+                      <option value="expiring">Vencendo</option>
+                    </select>
+                    <button onClick={() => { setEditingClient(null); setShowModal('client'); }} className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">+ Novo</button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="overflow-x-auto">
+                {loading ? (
+                  <div className="text-center py-12">Carregando...</div>
+                ) : clients.length === 0 ? (
+                  <div className="text-center py-12 text-gray-500">Nenhum cliente encontrado</div>
+                ) : (
+                  <table className="w-full">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nome</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">WhatsApp</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Plano</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Servidor</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Valor</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Vencimento</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                        <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Ações</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200">
+                      {clients.map(client => (
+                        <tr key={client.id} className="hover:bg-gray-50">
+                          <td className="px-6 py-4 whitespace-nowrap font-medium">{client.name}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{client.whatsapp_number}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{client.plan_name}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{client.server_name}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">R$ {parseFloat(client.price_value).toFixed(2)}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{new Date(client.due_date).toLocaleDateString('pt-BR')}</td>
+                          <td className="px-6 py-4 whitespace-nowrap">{getStatusBadge(client)}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-right text-sm space-x-2">
+                            <button onClick={() => { setEditingClient(client); setShowModal('client'); }} className="text-blue-600 hover:text-blue-900">Editar</button>
+                            <button onClick={() => handleDeleteClient(client.id)} className="text-red-600 hover:text-red-900">Excluir</button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            </div>
+          </main>
+
+          {showModal === 'plans' && <PlansModal plans={plans} onClose={() => setShowModal(null)} onRefresh={loadData} />}
+          {showModal === 'servers' && <ServersModal servers={servers} onClose={() => setShowModal(null)} onRefresh={loadData} />}
+          {showModal === 'client' && <ClientModal client={editingClient} plans={plans} servers={servers} onClose={() => setShowModal(null)} onSave={() => { setShowModal(null); loadData(); }} />}
+        </div>
+      );
+    }
+
+    function App() {
+      const [user, setUser] = useState(null);
+      const [loading, setLoading] = useState(true);
+
+      useEffect(() => {
+        const token = localStorage.getItem('user_token');
+        const userData = localStorage.getItem('user_data');
+        if (token && userData) {
+          try {
+            const parsed = JSON.parse(userData);
+            if (parsed.role !== 'admin') setUser(parsed);
+            else handleLogout();
+          } catch (error) {
+            handleLogout();
+          }
+        }
+        setLoading(false);
+      }, []);
+
+      const handleLogin = (userData) => setUser(userData);
+      const handleLogout = () => {
+        localStorage.removeItem('user_token');
+        localStorage.removeItem('user_data');
+        setUser(null);
+      };
+
+      if (loading) return <div className="min-h-screen flex items-center justify-center"><div className="text-center"><div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto"></div><p className="mt-4 text-gray-600">Carregando...</p></div></div>;
+      if (!user) return <Login onLogin={handleLogin} />;
+      return <Dashboard user={user} onLogout={handleLogout} />;
+    }
+
+    ReactDOM.render(<App />, document.getElementById('root'));
+  </script>
+</body>
+</html>
