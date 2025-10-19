@@ -1,0 +1,80 @@
+version: '3.8'
+
+services:
+  # Banco de dados para Evolution
+  postgres-evolution:
+    image: postgres:15-alpine
+    container_name: evolution_db
+    environment:
+      POSTGRES_DB: evolution
+      POSTGRES_USER: evolution_user
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - postgres_evolution_data:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"  # Porta diferente para não conflitar
+    restart: unless-stopped
+    networks:
+      - evolution_network
+
+  # Evolution API
+  evolution-api:
+    image: atendai/evolution-api:v2.0.10
+    container_name: evolution_api
+    environment:
+      # Configurações básicas
+      - SERVER_URL=http://37.60.235.47:8080
+      - SERVER_PORT=8080
+      
+      # Autenticação
+      - AUTHENTICATION_API_KEY=${EVOLUTION_API_KEY}
+      
+      # Banco de dados
+      - DATABASE_ENABLED=true
+      - DATABASE_PROVIDER=postgresql
+      - DATABASE_CONNECTION_URI=postgresql://evolution_user:${DB_PASSWORD}@postgres-evolution:5432/evolution
+      - DATABASE_SAVE_DATA_INSTANCE=true
+      - DATABASE_SAVE_DATA_NEW_MESSAGE=true
+      
+      # Configurações WhatsApp
+      - QRCODE_COLOR=#198754
+      - QRCODE_LIMIT=30
+      
+      # Logs
+      - LOG_LEVEL=ERROR
+      - LOG_COLOR=true
+      
+      # Webhook (opcional - para integrar com seu sistema)
+      - WEBHOOK_GLOBAL_URL=${WEBHOOK_URL}
+      - WEBHOOK_GLOBAL_ENABLED=false
+
+      # Redis - DESABILITADO
+      - CACHE_REDIS_ENABLED=false
+      - CACHE_REDIS_URI=
+      - CACHE_REDIS_PREFIX_KEY=
+      
+      # Cache Local - HABILITADO
+      - CACHE_LOCAL_ENABLED=true
+    ports:
+      - "8080:8080"
+    volumes:
+      - evolution_instances:/evolution/instances
+      - evolution_store:/evolution/store
+      - ./logs:/evolution/logs
+    depends_on:
+      - postgres-evolution
+    restart: unless-stopped
+    networks:
+      - evolution_network
+      - shared_network  # Rede compartilhada para comunicação entre sistemas
+
+volumes:
+  postgres_evolution_data:
+  evolution_instances:
+  evolution_store:
+
+networks:
+  evolution_network:
+    driver: bridge
+  shared_network:
+    external: true  # Rede compartilhada entre projetos
