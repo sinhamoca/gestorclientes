@@ -1,0 +1,78 @@
+version: '3.8'
+
+services:
+  postgres-gestao:
+    image: postgres:15-alpine
+    container_name: gestao_db
+    environment:
+      POSTGRES_DB: gestao_clientes
+      POSTGRES_USER: gestao_user
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - postgres_gestao_data:/var/lib/postgresql/data
+      - ./backups:/backups
+    #ports:
+    #  - "5432:5432"
+    restart: unless-stopped
+    networks:
+      - gestao_network
+      - shared_network  # ← ADICIONADO! Conecta na rede compartilhada
+  # Backend Admin
+  gestao-admin-backend:
+    build:
+      context: ./src
+      dockerfile: Dockerfile
+    container_name: gestao_admin_backend
+    env_file:
+      - ./.env  # ← ADICIONA ISTO PARA CARREGAR O .ENV
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://gestao_user:${DB_PASSWORD}@postgres-gestao:5432/gestao_clientes
+      - EVOLUTION_API_URL=http://evolution-api:8080
+      - EVOLUTION_API_KEY=${EVOLUTION_API_KEY}
+      - JWT_SECRET=${JWT_SECRET}
+      - PORT=3001
+      - TZ=America/Sao_Paulo  # ← ADICIONE ESTA LINHA
+    ports:
+      - "3001:3001"
+    depends_on:
+      - postgres-gestao
+    restart: unless-stopped
+    networks:
+      - gestao_network
+      - shared_network
+
+  # Frontend Admin
+  gestao-admin-frontend:
+    image: nginx:alpine
+    container_name: gestao_admin_frontend
+    volumes:
+      - ./frontend:/usr/share/nginx/html:ro
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    ports:
+      - "3000:80"
+    restart: unless-stopped
+    networks:
+      - gestao_network
+
+  # Frontend Sistema de Usuários (NOVO)
+  gestao-user-frontend:
+    image: nginx:alpine
+    container_name: gestao_user_frontend
+    volumes:
+      - ./user-system:/usr/share/nginx/html:ro
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    ports:
+      - "4000:80"
+    restart: unless-stopped
+    networks:
+      - gestao_network
+
+volumes:
+  postgres_gestao_data:
+
+networks:
+  gestao_network:
+    driver: bridge
+  shared_network:
+    external: true
