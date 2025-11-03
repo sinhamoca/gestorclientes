@@ -1,0 +1,428 @@
+/* ========================================
+   SISTEMA DE GESTÃO DE CLIENTES - STYLES
+   TEMA: GRADIENT BOLD (DARK MODE)
+   ======================================== */
+
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700;800&display=swap');
+
+/* ==================== CONFIGURAÇÕES GLOBAIS ==================== */
+* {
+  font-family: 'Space Grotesk', sans-serif;
+  transition: background-color 0.2s ease, color 0.2s ease, transform 0.2s ease;
+}
+
+body {
+  background: #0f172a;
+  min-height: 100vh;
+}
+
+/* ==================== BACKGROUND GRADIENT ==================== */
+.gradient-bg {
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+}
+
+/* ==================== ANIMATED BACKGROUND LINES ==================== */
+.bg-lines {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  opacity: 0.05;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.bg-lines::before,
+.bg-lines::after {
+  content: '';
+  position: absolute;
+  width: 2px;
+  height: 100%;
+  background: linear-gradient(180deg, transparent, #3b82f6, transparent);
+  animation: moveLine 10s linear infinite;
+}
+
+.bg-lines::before {
+  left: 20%;
+}
+
+.bg-lines::after {
+  right: 20%;
+  animation-delay: 5s;
+}
+
+@keyframes moveLine {
+  0% { transform: translateY(-100%); }
+  100% { transform: translateY(100%); }
+}
+
+/* ==================== GRADIENT CARDS ==================== */
+.gradient-card-1 {
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  position: relative;
+  overflow: hidden;
+  border-radius: 16px;
+  padding: 24px;
+}
+
+.gradient-card-1::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  right: -50%;
+  width: 200%;
+  height: 200%;
+  background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+  animation: pulse 3s ease-in-out infinite;
+}
+
+.gradient-card-2 {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  position: relative;
+  overflow: hidden;
+  border-radius: 16px;
+  padding: 24px;
+}
+
+.gradient-card-2::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  right: -50%;
+  width: 200%;
+  height: 200%;
+  background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+  animation: pulse 3s ease-in-out infinite 0.5s;
+}
+
+.gradient-card-3 {
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  position: relative;
+  overflow: hidden;
+  border-radius: 16px;
+  padding: 24px;
+}
+
+.gradient-card-3::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  right: -50%;
+  width: 200%;
+  height: 200%;
+  background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+  animation: pulse 3s ease-in-out infinite 1s;
+}
+
+.gradient-card-4 {
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  position: relative;
+  overflow: hidden;
+  border-radius: 16px;
+  padding: 24px;
+}
+
+.gradient-card-4::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  right: -50%;
+  width: 200%;
+  height: 200%;
+  background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+  animation: pulse 3s ease-in-out infinite 1.5s;
+}
+
+@keyframes pulse {
+  0%, 100% { 
+    transform: scale(1); 
+    opacity: 0.5; 
+  }
+  50% { 
+    transform: scale(1.1); 
+    opacity: 0.8; 
+  }
+}
+
+/* ==================== STAT CARDS ==================== */
+.stat-card-hover {
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  cursor: pointer;
+}
+
+.stat-card-hover:hover {
+  transform: translateY(-8px) scale(1.02);
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+}
+
+/* ==================== TEXT GRADIENTS ==================== */
+.gradient-text {
+  background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 50%, #ec4899 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ==================== BUTTONS ==================== */
+.btn-gradient {
+  background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+  padding: 12px 28px;
+  border-radius: 12px;
+  font-weight: 700;
+  transition: all 0.3s ease;
+  box-shadow: 0 10px 30px -10px rgba(59, 130, 246, 0.5);
+  border: none;
+  color: white;
+}
+
+.btn-gradient:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 15px 40px -10px rgba(59, 130, 246, 0.7);
+}
+
+.nav-btn {
+  padding: 12px 24px;
+  border-radius: 12px;
+  font-weight: 600;
+  transition: all 0.3s ease;
+  background: #1e293b;
+  color: white;
+  border: 2px solid #334155;
+}
+
+.nav-btn:hover {
+  background: #334155;
+  border-color: #3b82f6;
+  transform: translateY(-2px);
+  box-shadow: 0 10px 25px -10px rgba(59, 130, 246, 0.5);
+}
+
+/* ==================== INPUTS ==================== */
+.input-dark {
+  background: #1e293b;
+  border: 2px solid #334155;
+  border-radius: 12px;
+  padding: 14px 18px;
+  color: white;
+  transition: all 0.3s ease;
+}
+
+.input-dark::placeholder {
+  color: #64748b;
+}
+
+.input-dark:focus {
+  outline: none;
+  border-color: #3b82f6;
+  background: #0f172a;
+  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1);
+}
+
+/* ==================== TABLES ==================== */
+.table-dark {
+  border-spacing: 0 16px;
+  border-collapse: separate;
+}
+
+.table-dark tbody tr {
+  background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+  transition: all 0.3s ease;
+  position: relative;
+  z-index: 1;
+  border-left: 4px solid transparent;
+}
+
+.table-dark tbody tr:hover {
+  background: linear-gradient(135deg, #334155 0%, #475569 100%);
+  transform: translateX(8px);
+  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5);
+  z-index: 2;
+  border-left-color: #3b82f6;
+}
+
+/* Z-index maior quando dropdown está aberto */
+.table-dark tbody tr:has(.group:hover) {
+  z-index: 100;
+}
+
+.table-dark tbody td:first-child {
+  border-top-left-radius: 16px;
+  border-bottom-left-radius: 16px;
+  padding-left: 20px; /* Compensa o espaço da borda */
+}
+
+.table-dark tbody td:last-child {
+  border-top-right-radius: 16px;
+  border-bottom-right-radius: 16px;
+}
+
+/* ==================== BADGES ==================== */
+.badge-neon {
+  padding: 6px 18px;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.neon-border {
+  border: 2px solid;
+  box-shadow: 0 0 20px currentColor;
+}
+
+/* ==================== LOADER ==================== */
+.loader {
+  border: 4px solid #334155;
+  border-top: 4px solid #3b82f6;
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* ==================== SCROLLBAR CUSTOMIZADA ==================== */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #1e293b;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #475569;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}
+
+/* ==================== DROPDOWN MENU ==================== */
+.group:hover .group-hover\:opacity-100 {
+  opacity: 1 !important;
+}
+
+.group:hover .group-hover\:visible {
+  visibility: visible !important;
+}
+
+.transition-all {
+  transition: all 0.2s ease-in-out;
+}
+
+.z-10 {
+  z-index: 10;
+}
+
+.z-20 {
+  z-index: 20;
+}
+
+/* ==================== ANIMATIONS ==================== */
+.fade-in {
+  animation: fadeIn 0.3s ease-in;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Animação para dropdown */
+.group:hover > div {
+  animation: fadeIn 0.2s ease-out;
+}
+
+/* ==================== SHADOWS ==================== */
+.shadow-sm {
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+}
+
+.shadow {
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+}
+
+.shadow-lg {
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+}
+
+/* ==================== RESPONSIVIDADE ==================== */
+@media (max-width: 768px) {
+  .stat-card-hover {
+    padding: 16px;
+  }
+  
+  .nav-btn {
+    padding: 10px 16px;
+    font-size: 0.875rem;
+  }
+  
+  .input-dark {
+    padding: 12px 16px;
+  }
+  
+  table {
+    font-size: 0.875rem;
+  }
+  
+  th, td {
+    padding: 0.5rem !important;
+  }
+}
+
+/* ==================== MODAL BACKDROP ==================== */
+.modal-backdrop {
+  backdrop-filter: blur(2px);
+  background-color: rgba(0, 0, 0, 0.7);
+}
+
+/* ==================== FOCUS STATES ==================== */
+button:focus,
+input:focus,
+select:focus,
+textarea:focus {
+  outline: none;
+}
+
+.focus\:ring-2:focus {
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.5);
+}
+
+/* ==================== UTILITÁRIOS ==================== */
+.truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ==================== PRINT STYLES ==================== */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  
+  body {
+    background: white;
+  }
+  
+  .shadow,
+  .shadow-lg,
+  .shadow-sm {
+    box-shadow: none !important;
+  }
+}
