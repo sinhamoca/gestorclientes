@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WPPConnect Admin Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  
+  <style>
+    @keyframes pulse-slow {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+    .pulse-slow { animation: pulse-slow 2s ease-in-out infinite; }
+    
+    @keyframes slideIn {
+      from { transform: translateX(-100%); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+    .slide-in { animation: slideIn 0.3s ease-out; }
+    
+    .gradient-bg {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+    
+    .glass {
+      background: rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+  </style>
+</head>
+<body class="bg-gray-50">
+  <div id="root"></div>
+  
+  <!-- Carregar componentes -->
+  <script src="./js/config.js" type="text/babel"></script>
+  <script src="./js/api.js" type="text/babel"></script>
+  <script src="./js/components/Login.js" type="text/babel"></script>
+  <script src="./js/components/Overview.js" type="text/babel"></script>
+  <script src="./js/components/SessionsManager.js" type="text/babel"></script>
+  <script src="./js/components/TestMessages.js" type="text/babel"></script>
+  <script src="./js/components/Settings.js" type="text/babel"></script>
+  <script src="./js/components/Logs.js" type="text/babel"></script>
+  <script src="./js/App.js" type="text/babel"></script>
+</body>
+</html>

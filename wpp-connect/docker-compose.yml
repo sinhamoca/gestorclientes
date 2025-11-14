@@ -1,0 +1,61 @@
+version: '3.8'
+
+services:
+  # WhatsApp Service (API)
+  whatsapp-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: whatsapp_service
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=production
+      - TZ=America/Sao_Paulo
+    ports:
+      - "${PORT:-9000}:9000"
+    volumes:
+      - whatsapp_sessions:/app/sessions
+      - ./logs:/app/logs
+    restart: unless-stopped
+    networks:
+      - shared_network
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '1.0'
+          memory: 512M
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Dashboard Admin (Frontend)
+  wpp-dashboard:
+    image: nginx:alpine
+    container_name: wpp_dashboard
+    volumes:
+      - ./wpp-dashboard:/usr/share/nginx/html:ro
+      - ./wpp-dashboard-nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    ports:
+      - "9001:80"
+    restart: unless-stopped
+    networks:
+      - shared_network
+    environment:
+      - TZ=America/Sao_Paulo
+    depends_on:
+      - whatsapp-service
+
+volumes:
+  whatsapp_sessions:
+    driver: local
+
+networks:
+  shared_network:
+    external: true
