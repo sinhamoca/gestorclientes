@@ -1,0 +1,10 @@
+{
+  "name": "backup_2025-11-18_22-19-41_manual",
+  "timestamp": "20251118_221941",
+  "date": "2025-11-18T22:19:41Z",
+  "database": "gestao_clientes",
+  "size": "24.0K",
+  "type": "full",
+  "compressed": true,
+  "hash_sha256": "f8ddaf84af89c291d0b56be1814c6ed8df720b45eaa757a428494eb5f8db34ca"
+}
