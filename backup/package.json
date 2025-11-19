@@ -1,0 +1,21 @@
+{
+  "name": "backup-manager",
+  "version": "1.0.0",
+  "description": "Sistema automático de backup PostgreSQL com PM2",
+  "type": "module",
+  "main": "backup-manager.js",
+  "scripts": {
+    "start": "node backup-manager.js",
+    "pm2:start": "pm2 start backup-manager.js --name backup-postgres --time",
+    "pm2:stop": "pm2 stop backup-postgres",
+    "pm2:restart": "pm2 restart backup-postgres",
+    "pm2:logs": "pm2 logs backup-postgres",
+    "pm2:delete": "pm2 delete backup-postgres"
+  },
+  "keywords": ["backup", "postgresql", "pm2"],
+  "author": "Isaac",
+  "license": "MIT",
+  "dependencies": {
+    "dotenv": "^16.3.1"
+  }
+}

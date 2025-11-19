@@ -1,0 +1,167 @@
+╔═══════════════════════════════════════════════════════════╗
+║  📦 SISTEMA DE BACKUP AUTOMÁTICO - GUIA RÁPIDO           ║
+╚═══════════════════════════════════════════════════════════╝
+
+🚀 INSTALAÇÃO RÁPIDA
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. Copiar arquivos para o servidor:
+
+   # No seu computador local, baixe os arquivos:
+   - backup-manager.js
+   - restore.sh
+   - package.json
+   - .env
+   - install.sh
+   - README.md
+
+   # Enviar para o servidor:
+   scp *.{js,sh,json,env,md} root@37.60.235.47:/root/
+
+2. No servidor, executar instalador:
+
+   cd /root
+   chmod +x install.sh
+   ./install.sh
+
+   O instalador vai:
+   ✅ Criar diretório /root/backup-system
+   ✅ Copiar todos os arquivos
+   ✅ Instalar dependências
+   ✅ Configurar permissões
+   ✅ Verificar PM2
+
+
+📋 USO DIÁRIO
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+BACKUP AUTOMÁTICO (PM2)
+────────────────────────
+
+# Iniciar sistema de backup
+cd /root/backup-system
+npm run pm2:start
+
+# Ver logs
+npm run pm2:logs
+
+# Ver status
+pm2 list
+
+# Parar
+npm run pm2:stop
+
+# Reiniciar
+npm run pm2:restart
+
+
+RESTAURAR BACKUP (MANUAL)
+──────────────────────────
+
+# Executar script de restauração
+cd /root/backup-system
+./restore.sh
+
+# O menu interativo vai mostrar:
+  📋 Lista de backups (mais recente primeiro)
+  📅 Data e hora de cada backup
+  💾 Tamanho do arquivo
+  
+# Você escolhe qual restaurar
+# Sistema cria backup de segurança antes
+# Pede confirmação (digite SIM)
+# Restaura automaticamente
+
+
+⚙️ CONFIGURAÇÕES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Editar: /root/backup-system/.env
+
+POSTGRES_CONTAINER=gestao_db          # Nome do container
+DB_USER=gestao_user                   # Usuário do banco
+DB_NAME=gestao_clientes               # Nome do banco
+BACKUP_MAX_DAYS=7                     # Manter backups por 7 dias
+BACKUP_INTERVAL_HOURS=12              # Backup a cada 12 horas
+
+
+📊 MONITORAMENTO
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+# Ver logs de backup
+tail -f /root/backup-system/logs/backup.log
+
+# Ver logs de restauração
+tail -f /root/backup-system/logs/restore.log
+
+# Listar backups criados
+ls -lh /root/backup-system/backups/
+
+# Ver espaço usado
+du -sh /root/backup-system/backups/
+
+
+🔍 TROUBLESHOOTING
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Container não encontrado:
+  docker ps                    # Ver nome do container
+  nano .env                    # Atualizar POSTGRES_CONTAINER
+
+Backups não sendo criados:
+  pm2 logs backup-postgres     # Ver erros
+  docker exec gestao_db pg_dump --version  # Testar acesso
+
+PM2 não inicia no boot:
+  pm2 save                     # Salvar lista
+  pm2 startup                  # Configurar autostart
+  # Executar comando retornado
+
+
+✨ RECURSOS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+✅ Backup automático a cada 12h
+✅ Compressão gzip (economia de espaço)
+✅ Retenção de 7 dias (configurável)
+✅ Menu interativo de restauração
+✅ Backup de segurança antes de restaurar
+✅ Logs detalhados
+✅ Confirmação obrigatória
+✅ Roda em background (PM2)
+
+
+🎯 COMANDOS ÚTEIS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+pm2 monit                    # Dashboard PM2
+pm2 logs backup-postgres     # Logs em tempo real
+pm2 restart backup-postgres  # Reiniciar serviço
+./restore.sh                 # Restaurar backup
+ls -lt backups/              # Ver backups (mais recente primeiro)
+
+
+📞 EXEMPLO DE USO
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+# Dia 1: Instalar e iniciar
+./install.sh
+cd /root/backup-system
+npm run pm2:start
+
+# Sistema faz backup automaticamente a cada 12h
+
+# Dia 5: Algo deu errado, restaurar backup de ontem
+./restore.sh
+# Escolher backup de 24h atrás
+# Confirmar com SIM
+# Pronto! Banco restaurado
+
+
+🎉 PRONTO PARA USAR!
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Seu sistema de backup está pronto!
+Backups automáticos, seguros e fáceis de restaurar.
+
+Para mais detalhes, veja: README.md

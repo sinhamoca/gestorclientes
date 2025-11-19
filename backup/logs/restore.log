@@ -1,0 +1,9 @@
+[2025-11-18 22:44:04] Iniciando restauração de: /root/backup/backups/backup_2025-11-19T01-42-40-944Z.sql.gz
+[2025-11-18 22:44:04] Backup de segurança criado: /root/backup/backups/safety_backup_2025-11-18_22-44-04.sql.gz
+[2025-11-18 22:44:04] ERRO ao restaurar: /root/backup/backups/backup_2025-11-19T01-42-40-944Z.sql.gz
+[2025-11-18 22:45:58] Iniciando restauração de: /root/backup/backups/backup_2025-11-19T01-42-40-944Z.sql.gz
+[2025-11-18 22:45:59] Backup de segurança criado: /root/backup/backups/safety_backup_2025-11-18_22-45-58.sql.gz
+[2025-11-18 22:45:59] Restauração concluída com sucesso: /root/backup/backups/backup_2025-11-19T01-42-40-944Z.sql.gz
+[2025-11-18 23:01:39] Iniciando restauração de: /root/backup/backups/backup_2025-11-19T02-00-02-592Z.sql.gz
+[2025-11-18 23:01:39] Backup de segurança criado: /root/backup/backups/safety_backup_2025-11-18_23-01-39.sql.gz
+[2025-11-18 23:01:41] Restauração concluída com sucesso: /root/backup/backups/backup_2025-11-19T02-00-02-592Z.sql.gz (Users: 3, Clients: 1)
