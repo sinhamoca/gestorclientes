@@ -1,0 +1,829 @@
+// gestao-clientesv4/src/controllers/paymentController.js
+import { query } from '../config/database.js';
+import { MercadoPagoConfig, Preference, Payment } from 'mercadopago';
+import crypto from 'crypto';
+
+// ========== CONFIGURAÇÃO MERCADO PAGO ==========
+const mercadopagoClient = new MercadoPagoConfig({
+  accessToken: process.env.MERCADOPAGO_ACCESS_TOKEN || ''
+});
+
+const preferenceClient = new Preference(mercadopagoClient);
+const paymentClient = new Payment(mercadopagoClient);
+
+// ========== FUNÇÕES AUXILIARES ==========
+
+// Gera token único para sessão
+function generateSessionToken() {
+  return crypto.randomBytes(32).toString('hex');
+}
+
+// Valida assinatura do webhook do Mercado Pago
+function validateWebhookSignature(req) {
+  const signature = req.headers['x-signature'];
+  const requestId = req.headers['x-request-id'];
+  
+  if (!signature || !requestId) {
+    return false;
+  }
+  
+  // Mercado Pago envia: ts=timestamp,v1=hash
+  const parts = signature.split(',');
+  const ts = parts.find(p => p.startsWith('ts=')).split('=')[1];
+  const hash = parts.find(p => p.startsWith('v1=')).split('=')[1];
+  
+  // Reconstrói o hash
+  const secret = process.env.MERCADOPAGO_WEBHOOK_SECRET || '';
+  const dataId = req.body.data?.id || '';
+  const manifest = `id:${dataId};request-id:${requestId};ts:${ts};`;
+  
+  const hmac = crypto.createHmac('sha256', secret);
+  hmac.update(manifest);
+  const computedHash = hmac.digest('hex');
+  
+  return computedHash === hash;
+}
+
+// ========== PÁGINA DE PAGAMENTO (Renderiza HTML) ==========
+export async function renderPaymentPage(req, res) {
+  try {
+    const { token } = req.params;
+    
+    // Busca cliente pelo payment_token
+    const clientResult = await query(`
+      SELECT 
+        c.*,
+        p.name as plan_name,
+        p.duration_months,
+        s.name as server_name,
+        u.name as company_name,
+        u.email as company_email
+      FROM clients c
+      LEFT JOIN plans p ON c.plan_id = p.id
+      LEFT JOIN servers s ON c.server_id = s.id
+      JOIN users u ON c.user_id = u.id
+      WHERE c.payment_token = $1
+    `, [token]);
+    
+    if (clientResult.rows.length === 0) {
+      return res.status(404).send(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="UTF-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>Link Inválido</title>
+          <style>
+            body { font-family: Arial; text-align: center; padding: 50px; }
+            .error { color: #e74c3c; }
+          </style>
+        </head>
+        <body>
+          <h1 class="error">❌ Link Inválido</h1>
+          <p>Este link de pagamento não é válido ou expirou.</p>
+        </body>
+        </html>
+      `);
+    }
+    
+    const client = clientResult.rows[0];
+    
+    // Verifica se tem sessão ativa
+    const activeSessionResult = await query(`
+      SELECT * FROM payment_sessions 
+      WHERE client_id = $1 
+      AND status = 'pending'
+      AND expires_at > NOW()
+      ORDER BY created_at DESC
+      LIMIT 1
+    `, [client.id]);
+    
+    let paymentUrl;
+    let sessionId;
+    
+    if (activeSessionResult.rows.length > 0) {
+      // Reutiliza sessão existente
+      const session = activeSessionResult.rows[0];
+      paymentUrl = session.mercadopago_init_point;
+      sessionId = session.id;
+      console.log(`♻️ Reutilizando sessão de pagamento para ${client.name}`);
+    } else {
+      // Cria nova sessão de pagamento
+      const session = await createPaymentSession(client);
+      paymentUrl = session.mercadopago_init_point;
+      sessionId = session.id;
+      console.log(`🆕 Nova sessão de pagamento criada para ${client.name}`);
+    }
+    
+    // Renderiza página HTML
+    const html = generatePaymentPageHTML(client, paymentUrl, sessionId);
+    res.send(html);
+    
+  } catch (error) {
+    console.error('Render payment page error:', error);
+    res.status(500).send(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Erro</title>
+      </head>
+      <body style="font-family: Arial; text-align: center; padding: 50px;">
+        <h1 style="color: #e74c3c;">❌ Erro</h1>
+        <p>Ocorreu um erro ao carregar a página de pagamento.</p>
+        <p>Por favor, tente novamente mais tarde.</p>
+      </body>
+      </html>
+    `);
+  }
+}
+
+// ========== CRIAR SESSÃO DE PAGAMENTO ==========
+async function createPaymentSession(client) {
+  try {
+    const sessionToken = generateSessionToken();
+    const expirationHours = parseInt(process.env.PAYMENT_SESSION_EXPIRATION || '24');
+    const expiresAt = new Date(Date.now() + expirationHours * 60 * 60 * 1000);
+    
+    // Validações
+    const domain = process.env.PAYMENT_DOMAIN || 'https://pagamentos.comprarecarga.shop';
+    
+    if (!process.env.MERCADOPAGO_ACCESS_TOKEN) {
+      throw new Error('MERCADOPAGO_ACCESS_TOKEN não configurado');
+    }
+    
+    // Preparar telefone (formato seguro)
+    let phone = { area_code: '11', number: '999999999' };
+    if (client.whatsapp_number && client.whatsapp_number.length >= 10) {
+      const cleanPhone = client.whatsapp_number.replace(/\D/g, '');
+      phone = {
+        area_code: cleanPhone.substring(0, 2) || '11',
+        number: cleanPhone.substring(2) || '999999999'
+      };
+    }
+    
+    // Log de debug
+    console.log('🔍 Criando preferência:', {
+      clientName: client.name,
+      amount: client.price_value,
+      domain: domain,
+      hasToken: !!process.env.MERCADOPAGO_ACCESS_TOKEN
+    });
+    
+    // Cria preference no Mercado Pago
+    const preference = await preferenceClient.create({
+      body: {
+        items: [
+          {
+            id: client.id.toString(),
+            title: `${client.plan_name || 'Plano'} - ${client.name}`,
+            description: `Renovação - Vencimento: ${new Date(client.due_date).toLocaleDateString('pt-BR')}`,
+            quantity: 1,
+            unit_price: parseFloat(client.price_value),
+            currency_id: 'BRL'
+          }
+        ],
+        payer: {
+          name: client.name,
+          phone: phone
+        },
+        back_urls: {
+          success: `${domain}/payment/success?session=${sessionToken}`,
+          failure: `${domain}/payment/failure?session=${sessionToken}`,
+          pending: `${domain}/payment/pending?session=${sessionToken}`
+        },
+        auto_return: 'approved',
+        external_reference: sessionToken,
+        expires: true,
+        expiration_date_from: new Date().toISOString(),
+        expiration_date_to: expiresAt.toISOString(),
+        notification_url: `${domain}/api/webhooks/mercadopago`,
+        statement_descriptor: 'RENOVACAO',
+        metadata: {
+          client_id: client.id,
+          client_name: client.name,
+          session_token: sessionToken
+        }
+      }
+    });
+    
+    console.log('✅ Preferência criada:', preference.id);
+    
+    // Salvar sessão no banco
+    const sessionResult = await query(`
+      INSERT INTO payment_sessions (
+        client_id,
+        user_id,
+        payment_token,
+        session_token,
+        mercadopago_preference_id,
+        mercadopago_init_point,
+        amount,
+        currency,
+        status,
+        expires_at,
+        metadata
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+      RETURNING *
+    `, [
+      client.id,
+      client.user_id,
+      client.payment_token,
+      sessionToken,
+      preference.id,
+      preference.init_point,
+      client.price_value,
+      'BRL',
+      'pending',
+      expiresAt,
+      JSON.stringify({
+        client_name: client.name,
+        plan_name: client.plan_name,
+        due_date: client.due_date
+      })
+    ]);
+    
+    return sessionResult.rows[0];
+    
+  } catch (error) {
+    console.error('Create payment session error:', error);
+    throw error;
+  }
+}
+
+// ========== GERAR HTML DA PÁGINA DE PAGAMENTO ==========
+function generatePaymentPageHTML(client, paymentUrl, sessionId) {
+  const amount = parseFloat(client.price_value).toFixed(2);
+  const dueDate = new Date(client.due_date).toLocaleDateString('pt-BR');
+  
+  return `
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pagamento - ${client.company_name || 'Empresa'}</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    
+    .container {
+      max-width: 500px;
+      width: 100%;
+    }
+    
+    .logo {
+      text-align: center;
+      margin-bottom: 30px;
+    }
+    
+    .logo h1 {
+      color: white;
+      font-size: 28px;
+      font-weight: 600;
+      text-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    .card {
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+      overflow: hidden;
+    }
+    
+    .card-header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      padding: 30px;
+      text-align: center;
+      color: white;
+    }
+    
+    .card-header h2 {
+      font-size: 24px;
+      margin-bottom: 10px;
+    }
+    
+    .card-header p {
+      opacity: 0.9;
+      font-size: 14px;
+    }
+    
+    .card-body {
+      padding: 30px;
+    }
+    
+    .info-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 15px 0;
+      border-bottom: 1px solid #f0f0f0;
+    }
+    
+    .info-row:last-child {
+      border-bottom: none;
+    }
+    
+    .info-label {
+      color: #666;
+      font-size: 14px;
+    }
+    
+    .info-value {
+      color: #333;
+      font-weight: 600;
+      font-size: 14px;
+    }
+    
+    .amount {
+      text-align: center;
+      padding: 20px;
+      background: #f8f9fa;
+      border-radius: 12px;
+      margin: 20px 0;
+    }
+    
+    .amount-label {
+      color: #666;
+      font-size: 14px;
+      margin-bottom: 8px;
+    }
+    
+    .amount-value {
+      color: #667eea;
+      font-size: 36px;
+      font-weight: 700;
+    }
+    
+    .pay-button {
+      width: 100%;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      padding: 18px;
+      border-radius: 12px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.2s;
+      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+    }
+    
+    .pay-button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+    }
+    
+    .pay-button:active {
+      transform: translateY(0);
+    }
+    
+    .payment-methods {
+      display: flex;
+      justify-content: center;
+      gap: 15px;
+      margin-top: 20px;
+      padding-top: 20px;
+      border-top: 1px solid #f0f0f0;
+    }
+    
+    .payment-method {
+      text-align: center;
+      font-size: 12px;
+      color: #666;
+    }
+    
+    .payment-method-icon {
+      font-size: 24px;
+      margin-bottom: 5px;
+    }
+    
+    .security {
+      text-align: center;
+      margin-top: 20px;
+      padding-top: 20px;
+      border-top: 1px solid #f0f0f0;
+      color: #666;
+      font-size: 12px;
+    }
+    
+    .security-icon {
+      color: #28a745;
+      margin-right: 5px;
+    }
+    
+    @media (max-width: 480px) {
+      .card-body {
+        padding: 20px;
+      }
+      
+      .amount-value {
+        font-size: 28px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="logo">
+      <h1>💳 ${client.company_name || 'Portal de Pagamentos'}</h1>
+    </div>
+    
+    <div class="card">
+      <div class="card-header">
+        <h2>🎬 ${client.server_name || 'Serviço'}</h2>
+        <p>Renovação de Plano</p>
+      </div>
+      
+      <div class="card-body">
+        <div class="info-row">
+          <span class="info-label">👤 Cliente</span>
+          <span class="info-value">${client.name}</span>
+        </div>
+        
+        <div class="info-row">
+          <span class="info-label">📋 Plano</span>
+          <span class="info-value">${client.plan_name || 'Padrão'}</span>
+        </div>
+        
+        <div class="info-row">
+          <span class="info-label">📅 Vencimento</span>
+          <span class="info-value">${dueDate}</span>
+        </div>
+        
+        <div class="amount">
+          <div class="amount-label">Valor a Pagar</div>
+          <div class="amount-value">R$ ${amount}</div>
+        </div>
+        
+        <button class="pay-button" onclick="redirectToPayment()">
+          💳 Pagar com Mercado Pago
+        </button>
+        
+        <div class="payment-methods">
+          <div class="payment-method">
+            <div class="payment-method-icon">📱</div>
+            <div>PIX</div>
+          </div>
+          <div class="payment-method">
+            <div class="payment-method-icon">💳</div>
+            <div>Cartão</div>
+          </div>
+          <div class="payment-method">
+            <div class="payment-method-icon">📄</div>
+            <div>Boleto</div>
+          </div>
+        </div>
+        
+        <div class="security">
+          <span class="security-icon">🔒</span>
+          Pagamento 100% seguro via Mercado Pago
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <script>
+    function redirectToPayment() {
+      window.location.href = '${paymentUrl}';
+    }
+  </script>
+</body>
+</html>
+  `;
+}
+
+// ========== WEBHOOK DO MERCADO PAGO ==========
+export async function handleMercadoPagoWebhook(req, res) {
+  try {
+    console.log('📥 Webhook recebido do Mercado Pago:', req.body);
+    
+    // Valida assinatura (IMPORTANTE para segurança!)
+    if (!validateWebhookSignature(req)) {
+      console.warn('⚠️ Assinatura inválida no webhook!');
+      return res.status(401).json({ error: 'Invalid signature' });
+    }
+    
+    const { type, data } = req.body;
+    
+    // Processa apenas eventos de pagamento
+    if (type === 'payment') {
+      const paymentId = data.id;
+      
+      // Busca detalhes do pagamento na API do Mercado Pago
+      const payment = await paymentClient.get({ id: paymentId });
+      
+      console.log('💰 Detalhes do pagamento:', {
+        id: payment.id,
+        status: payment.status,
+        external_reference: payment.external_reference,
+        transaction_amount: payment.transaction_amount
+      });
+      
+      // Se o pagamento foi aprovado
+      if (payment.status === 'approved') {
+        await processApprovedPayment(payment);
+      }
+    }
+    
+    // Retorna 200 para o Mercado Pago
+    res.status(200).json({ success: true });
+    
+  } catch (error) {
+    console.error('❌ Erro ao processar webhook:', error);
+    res.status(500).json({ error: error.message });
+  }
+}
+
+// ========== PROCESSAR PAGAMENTO APROVADO ==========
+async function processApprovedPayment(payment) {
+  try {
+    const sessionToken = payment.external_reference;
+    
+    // Busca sessão de pagamento
+    const sessionResult = await query(`
+      SELECT ps.*, c.*, p.name as plan_name, p.duration_months,
+             s.cost_per_screen, s.multiply_by_screens,
+             COALESCE(pl.num_screens, 1) as num_screens
+      FROM payment_sessions ps
+      JOIN clients c ON ps.client_id = c.id
+      LEFT JOIN plans pl ON c.plan_id = pl.id
+      LEFT JOIN servers s ON c.server_id = s.id
+      LEFT JOIN plans p ON c.plan_id = p.id
+      WHERE ps.session_token = $1
+    `, [sessionToken]);
+    
+    if (sessionResult.rows.length === 0) {
+      console.warn('⚠️ Sessão não encontrada:', sessionToken);
+      return;
+    }
+    
+    const session = sessionResult.rows[0];
+    
+    // Verifica se já foi processado (idempotência)
+    if (session.status === 'paid') {
+      console.log('ℹ️ Pagamento já foi processado anteriormente');
+      return;
+    }
+    
+    console.log(`✅ Processando pagamento para cliente: ${session.name}`);
+    
+    // Calcula custo do servidor
+    const serverCost = session.multiply_by_screens 
+      ? parseFloat(session.cost_per_screen) * parseInt(session.num_screens)
+      : parseFloat(session.cost_per_screen);
+    
+    const amountReceived = parseFloat(payment.transaction_amount);
+    const netProfit = amountReceived - serverCost;
+    
+    // 1. Atualiza status da sessão
+    await query(`
+      UPDATE payment_sessions
+      SET status = 'paid',
+          paid_at = NOW(),
+          payment_method = $1,
+          mercadopago_payment_id = $2
+      WHERE id = $3
+    `, [payment.payment_type_id, payment.id, session.id]);
+    
+    // 2. Calcula nova data de vencimento
+    const currentDueDate = new Date(session.due_date);
+    const newDueDate = new Date(currentDueDate);
+    newDueDate.setMonth(newDueDate.getMonth() + (session.duration_months || 1));
+    
+    // 3. Atualiza cliente (RENOVA!)
+    await query(`
+      UPDATE clients
+      SET due_date = $1,
+          updated_at = NOW()
+      WHERE id = $2
+    `, [newDueDate, session.client_id]);
+    
+    // 4. Registra transação financeira
+    await query(`
+      INSERT INTO financial_transactions 
+      (user_id, client_id, type, amount_received, server_cost, net_profit,
+       due_date, paid_date, status, payment_method, payment_gateway, 
+       gateway_payment_id, payment_session_id)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), $8, $9, $10, $11, $12)
+    `, [
+      session.user_id,
+      session.client_id,
+      'renewal',
+      amountReceived,
+      serverCost,
+      netProfit,
+      session.due_date,
+      'paid',
+      payment.payment_type_id,
+      'mercadopago',
+      payment.id,
+      session.id
+    ]);
+    
+    console.log(`🎉 Cliente ${session.name} renovado com sucesso!`);
+    console.log(`   Novo vencimento: ${newDueDate.toLocaleDateString('pt-BR')}`);
+    console.log(`   Valor recebido: R$ ${amountReceived.toFixed(2)}`);
+    console.log(`   Lucro líquido: R$ ${netProfit.toFixed(2)}`);
+    
+    // 5. (OPCIONAL) Envia confirmação via WhatsApp
+    if (process.env.SEND_PAYMENT_CONFIRMATION === 'true') {
+      await sendPaymentConfirmation(session, newDueDate, amountReceived);
+    }
+    
+  } catch (error) {
+    console.error('❌ Erro ao processar pagamento aprovado:', error);
+    throw error;
+  }
+}
+
+// ========== ENVIAR CONFIRMAÇÃO VIA WHATSAPP ==========
+async function sendPaymentConfirmation(session, newDueDate, amount) {
+  try {
+    // Importa dinamicamente para evitar circular dependency
+    const { sendTextMessage, getUserInstance } = await import('./evolutionController.js');
+    
+    // Busca instância WhatsApp do usuário
+    const instance = await getUserInstance(session.user_id);
+    
+    if (!instance || instance.status !== 'connected') {
+      console.log('ℹ️ WhatsApp não conectado, confirmação não enviada');
+      return;
+    }
+    
+    const message = `✅ *Pagamento Confirmado!*
+
+Olá ${session.name}! 🎉
+
+Seu pagamento foi confirmado com sucesso!
+
+💰 Valor: R$ ${amount.toFixed(2)}
+📅 Novo vencimento: ${newDueDate.toLocaleDateString('pt-BR')}
+🎬 Plano: ${session.plan_name || 'Padrão'}
+
+Obrigado pela preferência! 😊`;
+    
+    await sendTextMessage(instance.instance_name, session.whatsapp_number, message);
+    console.log(`📱 Confirmação enviada via WhatsApp para ${session.name}`);
+    
+  } catch (error) {
+    console.error('⚠️ Erro ao enviar confirmação via WhatsApp:', error);
+    // Não lança erro para não quebrar o fluxo principal
+  }
+}
+
+// ========== PÁGINAS DE RETORNO ==========
+export async function paymentSuccess(req, res) {
+  const { session } = req.query;
+  res.send(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Pagamento Aprovado</title>
+      <style>
+        body {
+          font-family: Arial;
+          text-align: center;
+          padding: 50px;
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          min-height: 100vh;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+        .card {
+          background: white;
+          padding: 40px;
+          border-radius: 16px;
+          box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+          max-width: 400px;
+        }
+        .success-icon {
+          font-size: 64px;
+          margin-bottom: 20px;
+        }
+        h1 { color: #28a745; }
+        p { color: #666; line-height: 1.6; }
+      </style>
+    </head>
+    <body>
+      <div class="card">
+        <div class="success-icon">✅</div>
+        <h1>Pagamento Aprovado!</h1>
+        <p>Seu pagamento foi confirmado com sucesso.</p>
+        <p>Você receberá uma confirmação via WhatsApp em instantes.</p>
+        <p style="margin-top: 30px; font-size: 14px; color: #999;">
+          Você pode fechar esta página.
+        </p>
+      </div>
+    </body>
+    </html>
+  `);
+}
+
+export async function paymentFailure(req, res) {
+  res.send(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Pagamento Não Aprovado</title>
+      <style>
+        body {
+          font-family: Arial;
+          text-align: center;
+          padding: 50px;
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          min-height: 100vh;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+        .card {
+          background: white;
+          padding: 40px;
+          border-radius: 16px;
+          box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+          max-width: 400px;
+        }
+        .error-icon {
+          font-size: 64px;
+          margin-bottom: 20px;
+        }
+        h1 { color: #e74c3c; }
+        p { color: #666; line-height: 1.6; }
+      </style>
+    </head>
+    <body>
+      <div class="card">
+        <div class="error-icon">❌</div>
+        <h1>Pagamento Não Aprovado</h1>
+        <p>Houve um problema ao processar seu pagamento.</p>
+        <p>Por favor, tente novamente ou entre em contato conosco.</p>
+      </div>
+    </body>
+    </html>
+  `);
+}
+
+export async function paymentPending(req, res) {
+  res.send(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Pagamento Pendente</title>
+      <style>
+        body {
+          font-family: Arial;
+          text-align: center;
+          padding: 50px;
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          min-height: 100vh;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+        .card {
+          background: white;
+          padding: 40px;
+          border-radius: 16px;
+          box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+          max-width: 400px;
+        }
+        .pending-icon {
+          font-size: 64px;
+          margin-bottom: 20px;
+        }
+        h1 { color: #f39c12; }
+        p { color: #666; line-height: 1.6; }
+      </style>
+    </head>
+    <body>
+      <div class="card">
+        <div class="pending-icon">⏳</div>
+        <h1>Pagamento Pendente</h1>
+        <p>Seu pagamento está sendo processado.</p>
+        <p>Você receberá uma confirmação assim que for aprovado.</p>
+      </div>
+    </body>
+    </html>
+  `);
+}
