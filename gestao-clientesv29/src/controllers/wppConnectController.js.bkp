@@ -1,0 +1,425 @@
+import { query } from '../config/database.js';
+import fetch from 'node-fetch';
+
+// ========================================
+// WPP CONNECT CONTROLLER
+// Substitui Evolution API por WPP Connect
+// ========================================
+
+const WPP_CONNECT_URL = process.env.WPP_CONNECT_URL || 'http://whatsapp-service:9000';
+const WPP_CONNECT_API_KEY = process.env.WPP_CONNECT_API_KEY;
+
+const getHeaders = () => ({
+  'Content-Type': 'application/json',
+  'x-api-key': WPP_CONNECT_API_KEY
+});
+
+// ==========================================
+// CRIAR OU RECONECTAR INSTÂNCIA
+// ==========================================
+export async function createOrConnectInstance(req, res) {
+  try {
+    const userId = req.user.id;
+    const sessionId = `user_${userId}`;
+
+    console.log(`📱 [User ${userId}] Solicitação de conexão WhatsApp via WPP Connect`);
+
+    // Verifica se já existe instância no banco
+    const existingInstance = await query(
+      'SELECT * FROM whatsapp_instances WHERE user_id = $1',
+      [userId]
+    );
+
+    if (existingInstance.rows.length > 0) {
+      const instance = existingInstance.rows[0];
+      console.log(`   ℹ️  Instância existente encontrada: ${instance.instance_name} (Status: ${instance.status})`);
+      
+      // Se já está conectada, verifica se realmente está ativa no WPP Connect
+      if (instance.status === 'connected') {
+        try {
+          const statusResponse = await fetch(`${WPP_CONNECT_URL}/api/session/status/${sessionId}`, {
+            method: 'GET',
+            headers: getHeaders()
+          });
+
+          if (statusResponse.ok) {
+            const statusData = await statusResponse.json();
+            
+            if (statusData.connected) {
+              console.log(`   ✅ WhatsApp já está conectado`);
+              return res.json({
+                message: 'WhatsApp já conectado',
+                connected: true,
+                phoneNumber: statusData.phoneNumber,
+                needsQR: false
+              });
+            }
+          }
+        } catch (error) {
+          console.log(`   ⚠️  Erro ao verificar status no WPP Connect:`, error.message);
+        }
+      }
+    }
+
+    // Cria nova sessão no WPP Connect
+    console.log(`🔧 Criando sessão no WPP Connect: ${sessionId}`);
+    
+    const createResponse = await fetch(`${WPP_CONNECT_URL}/api/session/create`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({
+        sessionId: sessionId
+      })
+    });
+
+    if (!createResponse.ok) {
+      const errorData = await createResponse.json();
+      throw new Error(errorData.error || 'Erro ao criar sessão no WPP Connect');
+    }
+
+    const createData = await createResponse.json();
+    console.log(`   📋 Resposta WPP Connect:`, createData);
+
+    // WPP Connect retorna o QR code diretamente no create
+    const qrCode = createData.qrCode || createData.base64 || null;
+    const needsQR = createData.needsQR !== false; // Default true
+
+    console.log(`   🔲 QR Code obtido: ${qrCode ? 'SIM ✅' : 'NÃO ❌'}`);
+    console.log(`   📱 Precisa QR: ${needsQR ? 'SIM' : 'NÃO'}`);
+
+    // Salva ou atualiza no banco
+    await query(
+      `INSERT INTO whatsapp_instances 
+       (user_id, instance_name, status, qr_code, qr_code_updated_at)
+       VALUES ($1, $2, $3, $4, NOW())
+       ON CONFLICT (user_id) 
+       DO UPDATE SET 
+         instance_name = $2,
+         status = $3,
+         qr_code = $4,
+         qr_code_updated_at = NOW(),
+         updated_at = NOW()`,
+      [userId, sessionId, needsQR ? 'connecting' : 'connected', qrCode]
+    );
+
+    console.log(`   💾 Dados salvos no banco`);
+    console.log(`   📤 Retornando resposta para frontend\n`);
+
+    res.json({
+      message: needsQR ? 'QR Code gerado com sucesso' : 'Conectado com sucesso',
+      qrCode: qrCode,
+      connected: !needsQR,
+      needsQR: needsQR,
+      sessionId: sessionId
+    });
+
+  } catch (error) {
+    console.error('❌ Erro em createOrConnectInstance:', error);
+    res.status(500).json({ error: error.message });
+  }
+}
+
+// ==========================================
+// BUSCAR QR CODE ATUALIZADO
+// (Para polling do frontend)
+// ==========================================
+export async function getQRCode(req, res) {
+  try {
+    const userId = req.user.id;
+    
+    const result = await query(
+      'SELECT * FROM whatsapp_instances WHERE user_id = $1',
+      [userId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Nenhuma instância encontrada' });
+    }
+
+    const instance = result.rows[0];
+    const sessionId = instance.instance_name;
+
+    console.log(`🔍 [User ${userId}] Verificando status da sessão ${sessionId}`);
+
+    // Verifica status atual no WPP Connect
+    try {
+      const statusResponse = await fetch(`${WPP_CONNECT_URL}/api/session/status/${sessionId}`, {
+        method: 'GET',
+        headers: getHeaders()
+      });
+
+      if (statusResponse.ok) {
+        const statusData = await statusResponse.json();
+
+        // Se conectou, atualiza no banco
+        if (statusData.connected) {
+          await query(
+            `UPDATE whatsapp_instances 
+             SET status = 'connected', 
+                 phone_number = $1, 
+                 connected_at = NOW(), 
+                 qr_code = NULL,
+                 updated_at = NOW()
+             WHERE user_id = $2`,
+            [statusData.phoneNumber, userId]
+          );
+
+          console.log(`   ✅ Sessão conectada! Número: ${statusData.phoneNumber}`);
+
+          return res.json({
+            connected: true,
+            phoneNumber: statusData.phoneNumber
+          });
+        }
+      }
+    } catch (error) {
+      console.error('   ⚠️  Erro ao verificar status:', error.message);
+    }
+
+    // Se não conectou ainda, retorna QR code do banco
+    console.log(`   ⏳ Aguardando conexão... Retornando QR do banco`);
+    
+    res.json({
+      qrCode: instance.qr_code,
+      connected: false
+    });
+
+  } catch (error) {
+    console.error('❌ Erro em getQRCode:', error);
+    res.status(500).json({ error: error.message });
+  }
+}
+
+// ==========================================
+// VERIFICAR STATUS DA CONEXÃO
+// ==========================================
+export async function checkConnectionStatus(req, res) {
+  try {
+    const userId = req.user.id;
+    
+    const result = await query(
+      'SELECT * FROM whatsapp_instances WHERE user_id = $1',
+      [userId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.json({ 
+        connected: false, 
+        message: 'Nenhuma instância criada' 
+      });
+    }
+
+    const instance = result.rows[0];
+    const sessionId = instance.instance_name;
+
+    // Verifica status no WPP Connect
+    try {
+      const statusResponse = await fetch(`${WPP_CONNECT_URL}/api/session/status/${sessionId}`, {
+        method: 'GET',
+        headers: getHeaders()
+      });
+
+      if (statusResponse.ok) {
+        const statusData = await statusResponse.json();
+        const isConnected = statusData.connected === true;
+
+        // Atualiza status no banco
+        await query(
+          `UPDATE whatsapp_instances 
+           SET status = $1, 
+               phone_number = $2,
+               connected_at = $3,
+               last_ping = NOW(),
+               updated_at = NOW()
+           WHERE user_id = $4`,
+          [
+            isConnected ? 'connected' : 'disconnected',
+            statusData.phoneNumber || null,
+            isConnected ? (instance.connected_at || new Date()) : null,
+            userId
+          ]
+        );
+
+        return res.json({
+          connected: isConnected,
+          phoneNumber: statusData.phoneNumber,
+          platform: statusData.platform,
+          pushname: statusData.pushname
+        });
+      }
+    } catch (error) {
+      console.error('Erro ao verificar status no WPP Connect:', error);
+    }
+
+    // Se falhou verificar, retorna status do banco
+    res.json({
+      connected: instance.status === 'connected',
+      phoneNumber: instance.phone_number
+    });
+
+  } catch (error) {
+    console.error('Error checking status:', error);
+    res.status(500).json({ error: error.message });
+  }
+}
+
+// ==========================================
+// DESCONECTAR INSTÂNCIA
+// ==========================================
+export async function disconnectInstance(req, res) {
+  try {
+    const userId = req.user.id;
+    
+    const result = await query(
+      'SELECT * FROM whatsapp_instances WHERE user_id = $1',
+      [userId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Nenhuma instância encontrada' });
+    }
+
+    const instance = result.rows[0];
+    const sessionId = instance.instance_name;
+
+    console.log(`🔌 [User ${userId}] Desconectando sessão: ${sessionId}`);
+
+    // Desconecta no WPP Connect
+    try {
+      const disconnectResponse = await fetch(`${WPP_CONNECT_URL}/api/session/disconnect`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify({
+          sessionId: sessionId
+        })
+      });
+
+      if (disconnectResponse.ok) {
+        console.log(`   ✅ Desconectado do WPP Connect`);
+      }
+    } catch (error) {
+      console.error('   ⚠️  Erro ao desconectar do WPP Connect:', error);
+    }
+
+    // Atualiza status no banco
+    await query(
+      `UPDATE whatsapp_instances 
+       SET status = 'disconnected', 
+           qr_code = NULL, 
+           phone_number = NULL, 
+           updated_at = NOW()
+       WHERE user_id = $1`,
+      [userId]
+    );
+
+    console.log(`   💾 Status atualizado no banco`);
+
+    res.json({ message: 'Desconectado com sucesso' });
+
+  } catch (error) {
+    console.error('Error disconnecting:', error);
+    res.status(500).json({ error: error.message });
+  }
+}
+
+// ==========================================
+// EXCLUIR INSTÂNCIA COMPLETAMENTE
+// ==========================================
+export async function deleteInstance(req, res) {
+  try {
+    const userId = req.user.id;
+    
+    const result = await query(
+      'SELECT * FROM whatsapp_instances WHERE user_id = $1',
+      [userId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Nenhuma instância encontrada' });
+    }
+
+    const instance = result.rows[0];
+    const sessionId = instance.instance_name;
+
+    console.log(`🗑️  [User ${userId}] Excluindo instância: ${sessionId}`);
+
+    // Deleta no WPP Connect (exclui tokens e sessão)
+    try {
+      const deleteResponse = await fetch(`${WPP_CONNECT_URL}/api/session/${sessionId}`, {
+        method: 'DELETE',
+        headers: getHeaders()
+      });
+
+      if (deleteResponse.ok) {
+        console.log(`   ✅ Instância deletada do WPP Connect`);
+      }
+    } catch (error) {
+      console.error('   ⚠️  Erro ao deletar do WPP Connect:', error);
+    }
+
+    // Deleta do banco de dados
+    await query(
+      'DELETE FROM whatsapp_instances WHERE user_id = $1',
+      [userId]
+    );
+
+    console.log(`   ✅ Instância removida do banco de dados`);
+
+    res.json({ message: 'Instância excluída com sucesso' });
+
+  } catch (error) {
+    console.error('Error deleting instance:', error);
+    res.status(500).json({ error: error.message });
+  }
+}
+
+// ==========================================
+// ENVIAR MENSAGEM DE TEXTO
+// (Para ser usado pelas funções internas)
+// ==========================================
+export async function sendTextMessage(sessionId, phoneNumber, message) {
+  try {
+    console.log(`📤 Enviando mensagem via ${sessionId} para ${phoneNumber}`);
+
+    const response = await fetch(`${WPP_CONNECT_URL}/api/message/send`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({
+        sessionId: sessionId,
+        phoneNumber: phoneNumber,
+        message: message
+      })
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Erro ao enviar mensagem');
+    }
+
+    const result = await response.json();
+    console.log(`   ✅ Mensagem enviada com sucesso`);
+
+    return result;
+
+  } catch (error) {
+    console.error('❌ Erro ao enviar mensagem:', error);
+    throw error;
+  }
+}
+
+// ==========================================
+// OBTER INSTÂNCIA DO USUÁRIO
+// (Função auxiliar usada por outros serviços)
+// ==========================================
+export async function getUserInstance(userId) {
+  const result = await query(
+    'SELECT * FROM whatsapp_instances WHERE user_id = $1 AND status = $2',
+    [userId, 'connected']
+  );
+
+  if (result.rows.length === 0) {
+    return null;
+  }
+
+  return result.rows[0];
+}
