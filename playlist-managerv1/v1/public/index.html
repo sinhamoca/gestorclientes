@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IPTV Playlist Manager</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <!-- Header -->
+    <header>
+        <h1>📺 IPTV Playlist Manager</h1>
+        <div id="user-info"></div>
+    </header>
+
+    <!-- Main Container -->
+    <main>
+        <!-- Mensagens -->
+        <div id="message-container"></div>
+
+        <!-- Loading -->
+        <div id="loading" class="loading hidden">
+            <div class="spinner"></div>
+            <p>Carregando...</p>
+        </div>
+
+        <!-- Listagem de Clientes -->
+        <section id="clients-section">
+            <h2>Seus Clientes</h2>
+            <div class="table-container">
+                <table id="clients-table">
+                    <thead>
+                        <tr>
+                            <th>Nome</th>
+                            <th>MAC Address</th>
+                            <th>Device Key</th>
+                            <th>Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody id="clients-tbody">
+                        <tr>
+                            <td colspan="4" class="text-center">Carregando clientes...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- Modal: Seleção de Domínio (IBOPlayer) -->
+        <div id="domain-modal" class="modal hidden">
+            <div class="modal-content">
+                <h3>Selecione o Domínio</h3>
+                <p>Escolha o domínio do IBOPlayer:</p>
+                <div class="domain-buttons">
+                    <button class="btn btn-primary" onclick="selectDomain('iboiptv.com')">iboiptv.com</button>
+                    <button class="btn btn-primary" onclick="selectDomain('bobplayer.com')">bobplayer.com</button>
+                </div>
+                <button class="btn btn-secondary" onclick="closeDomainModal()">Cancelar</button>
+            </div>
+        </div>
+
+        <!-- Modal: Gerenciamento de Playlists -->
+        <div id="playlist-modal" class="modal hidden">
+            <div class="modal-content modal-large">
+                <div class="modal-header">
+                    <h3 id="playlist-modal-title">Gerenciar Playlists</h3>
+                    <button class="close-btn" onclick="closePlaylistModal()">×</button>
+                </div>
+
+                <div id="playlist-loading" class="loading hidden">
+                    <div class="spinner"></div>
+                    <p id="playlist-loading-text">Fazendo login...</p>
+                </div>
+
+                <div id="playlist-content" class="hidden">
+                    <!-- Lista de Playlists -->
+                    <div class="playlist-list">
+                        <h4>Playlists Atuais</h4>
+                        <div class="table-container">
+                            <table id="playlists-table">
+                                <thead>
+                                    <tr>
+                                        <th>Nome</th>
+                                        <th>URL</th>
+                                        <th>Tipo</th>
+                                        <th>Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="playlists-tbody">
+                                    <tr>
+                                        <td colspan="4" class="text-center">Nenhuma playlist</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Formulário -->
+                    <div class="playlist-form">
+                        <h4 id="form-title">Adicionar Nova Playlist</h4>
+                        <form id="playlist-form">
+                            <input type="hidden" id="playlist-id" value="">
+                            
+                            <div class="form-group">
+                                <label for="playlist-name">Nome:</label>
+                                <input type="text" id="playlist-name" required>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="playlist-url">URL:</label>
+                                <input type="url" id="playlist-url" required>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="playlist-type">Tipo:</label>
+                                <select id="playlist-type">
+                                    <option value="general">Geral</option>
+                                    <option value="movie">Filmes</option>
+                                    <option value="series">Séries</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label>
+                                    <input type="checkbox" id="playlist-protect">
+                                    Proteger com PIN
+                                </label>
+                            </div>
+
+                            <div class="form-group hidden" id="pin-group">
+                                <label for="playlist-pin">PIN:</label>
+                                <input type="text" id="playlist-pin" maxlength="4">
+                            </div>
+
+                            <div class="form-actions">
+                                <button type="submit" class="btn btn-primary" id="form-submit-btn">Adicionar</button>
+                                <button type="button" class="btn btn-secondary" onclick="resetForm()">Cancelar</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" onclick="closePlaylistModal()">Fechar</button>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <footer>
+        <p>IPTV Playlist Manager v1.0</p>
+    </footer>
+
+    <script src="/js/app.js"></script>
+</body>
+</html>

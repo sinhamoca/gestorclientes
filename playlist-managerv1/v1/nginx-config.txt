@@ -1,0 +1,62 @@
+# ========================================
+# SUBDOMÍNIO: playlists.comprarecarga.shop
+# IPTV Playlist Manager - Porta 3005
+# ========================================
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name playlists.comprarecarga.shop;
+
+    # Logs
+    access_log /var/log/nginx/playlists_access.log;
+    error_log /var/log/nginx/playlists_error.log;
+
+    # Tamanho máximo de upload
+    client_max_body_size 10M;
+
+    # Timeout maior para captcha (até 60s)
+    proxy_connect_timeout 120s;
+    proxy_send_timeout 120s;
+    proxy_read_timeout 120s;
+
+    # Proxy para IPTV Playlist Manager (porta 3005)
+    location / {
+        proxy_pass http://localhost:3005;
+        proxy_http_version 1.1;
+
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        proxy_cache_bypass $http_upgrade;
+    }
+}
+
+# ========================================
+# INSTRUÇÕES DE INSTALAÇÃO:
+# ========================================
+#
+# 1. Copiar este arquivo para /etc/nginx/sites-available/:
+#    sudo nano /etc/nginx/sites-available/playlists.comprarecarga.shop
+#
+# 2. Criar link simbólico em sites-enabled:
+#    sudo ln -s /etc/nginx/sites-available/playlists.comprarecarga.shop /etc/nginx/sites-enabled/
+#
+# 3. Testar configuração Nginx:
+#    sudo nginx -t
+#
+# 4. Recarregar Nginx:
+#    sudo systemctl reload nginx
+#
+# 5. No Cloudflare, adicionar registro DNS:
+#    Tipo: A
+#    Nome: playlists
+#    Conteúdo: 37.60.235.47
+#    Proxy: ☁️ Ativado (laranja)
+#    TTL: Auto
+#
+# ========================================
