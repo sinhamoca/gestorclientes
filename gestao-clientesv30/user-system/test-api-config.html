@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🔧 Teste de Configuração da API</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      max-width: 800px;
+      margin: 50px auto;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    .card {
+      background: white;
+      padding: 30px;
+      border-radius: 10px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+      margin-bottom: 20px;
+    }
+    h1 {
+      color: #333;
+      margin-top: 0;
+    }
+    .status {
+      padding: 15px;
+      border-radius: 5px;
+      margin: 10px 0;
+      font-weight: bold;
+    }
+    .success {
+      background: #d4edda;
+      color: #155724;
+      border: 1px solid #c3e6cb;
+    }
+    .error {
+      background: #f8d7da;
+      color: #721c24;
+      border: 1px solid #f5c6cb;
+    }
+    .warning {
+      background: #fff3cd;
+      color: #856404;
+      border: 1px solid #ffeaa7;
+    }
+    .info {
+      background: #d1ecf1;
+      color: #0c5460;
+      border: 1px solid #bee5eb;
+    }
+    button {
+      background: #007bff;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 16px;
+      margin: 5px;
+    }
+    button:hover {
+      background: #0056b3;
+    }
+    pre {
+      background: #f8f9fa;
+      padding: 15px;
+      border-radius: 5px;
+      overflow-x: auto;
+      border: 1px solid #dee2e6;
+    }
+    .test-item {
+      border-left: 4px solid #007bff;
+      padding-left: 15px;
+      margin: 15px 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>🔧 Teste de Configuração da API</h1>
+    <p>Esta página testa se a API está configurada corretamente.</p>
+    
+    <button onclick="runAllTests()">▶️ Executar Todos os Testes</button>
+    <button onclick="clearResults()">🗑️ Limpar Resultados</button>
+    
+    <div id="results"></div>
+  </div>
+
+  <!-- Carregar arquivos de configuração -->
+  <script src="js/config.js"></script>
+  <script src="js/api.js"></script>
+
+  <script>
+    const resultsDiv = document.getElementById('results');
+
+    function clearResults() {
+      resultsDiv.innerHTML = '';
+    }
+
+    function addResult(title, message, type = 'info') {
+      const div = document.createElement('div');
+      div.className = `status ${type} test-item`;
+      div.innerHTML = `<strong>${title}</strong><br>${message}`;
+      resultsDiv.appendChild(div);
+    }
+
+    function addCode(title, code) {
+      const div = document.createElement('div');
+      div.className = 'test-item';
+      div.innerHTML = `<strong>${title}</strong><pre>${code}</pre>`;
+      resultsDiv.appendChild(div);
+    }
+
+    async function runAllTests() {
+      clearResults();
+      
+      addResult('🚀 Iniciando Testes', 'Executando bateria de testes...', 'info');
+
+      // Teste 1: Verificar se config.js foi carregado
+      test1_ConfigLoaded();
+      
+      // Teste 2: Verificar estrutura da API_URL
+      test2_APIUrlStructure();
+      
+      // Teste 3: Verificar se api.js foi carregado
+      test3_ApiObjectExists();
+      
+      // Teste 4: Verificar localStorage
+      test4_LocalStorage();
+      
+      // Teste 5: Testar conexão real (se tiver token)
+      await test5_RealConnection();
+      
+      addResult('✅ Testes Concluídos', 'Todos os testes foram executados.', 'success');
+    }
+
+    function test1_ConfigLoaded() {
+      if (typeof API_URL === 'undefined') {
+        addResult(
+          '❌ Teste 1: config.js',
+          'FALHOU: API_URL não está definida. Verifique se config.js foi carregado.',
+          'error'
+        );
+        addCode('Solução', 
+          'Verifique se no HTML tem:\n' +
+          '<script src="js/config.js"></script> <!-- ANTES de api.js -->'
+        );
+      } else {
+        addResult(
+          '✅ Teste 1: config.js',
+          `PASSOU: API_URL está definida como: ${API_URL}`,
+          'success'
+        );
+      }
+    }
+
+    function test2_APIUrlStructure() {
+      if (typeof API_URL === 'undefined') {
+        addResult('⏭️ Teste 2: Estrutura da URL', 'PULADO: API_URL não definida', 'warning');
+        return;
+      }
+
+      const checks = [];
+      
+      // Check 1: Tem protocolo?
+      if (API_URL.startsWith('http://') || API_URL.startsWith('https://')) {
+        checks.push('✅ Tem protocolo (http/https)');
+      } else {
+        checks.push('❌ SEM protocolo! Adicione https://');
+      }
+      
+      // Check 2: Tem domínio válido?
+      if (API_URL.includes('comprarecarga.shop')) {
+        checks.push('✅ Domínio correto (comprarecarga.shop)');
+      } else {
+        checks.push('⚠️ Domínio diferente do esperado');
+      }
+      
+      // Check 3: Termina com /api?
+      if (API_URL.endsWith('/api')) {
+        checks.push('✅ Termina com /api');
+      } else {
+        checks.push('⚠️ Não termina com /api (pode causar problemas)');
+      }
+
+      const hasErrors = checks.some(c => c.includes('❌'));
+      
+      addResult(
+        hasErrors ? '⚠️ Teste 2: Estrutura da URL' : '✅ Teste 2: Estrutura da URL',
+        checks.join('<br>'),
+        hasErrors ? 'warning' : 'success'
+      );
+      
+      addCode('URL Configurada', API_URL);
+    }
+
+    function test3_ApiObjectExists() {
+      if (typeof api === 'undefined') {
+        addResult(
+          '❌ Teste 3: api.js',
+          'FALHOU: Objeto "api" não está definido. Verifique se api.js foi carregado.',
+          'error'
+        );
+        return;
+      }
+
+      const methods = [
+        'getClients',
+        'getClientInvoices',
+        'createClient',
+        'updateClient',
+        'deleteClient'
+      ];
+
+      const missing = methods.filter(m => typeof api[m] !== 'function');
+      
+      if (missing.length > 0) {
+        addResult(
+          '⚠️ Teste 3: api.js',
+          `PARCIAL: Faltam métodos: ${missing.join(', ')}`,
+          'warning'
+        );
+      } else {
+        addResult(
+          '✅ Teste 3: api.js',
+          'PASSOU: Todos os métodos necessários existem',
+          'success'
+        );
+      }
+    }
+
+    function test4_LocalStorage() {
+      const token = localStorage.getItem('user_token');
+      const userData = localStorage.getItem('user_data');
+      
+      if (!token) {
+        addResult(
+          '⚠️ Teste 4: localStorage',
+          'SEM TOKEN: Você não está logado. Faça login primeiro.',
+          'warning'
+        );
+      } else {
+        addResult(
+          '✅ Teste 4: localStorage',
+          `PASSOU: Token encontrado (${token.substring(0, 20)}...)`,
+          'success'
+        );
+      }
+
+      if (userData) {
+        try {
+          const user = JSON.parse(userData);
+          addCode('Dados do Usuário', JSON.stringify(user, null, 2));
+        } catch (e) {
+          addResult('⚠️ Dados do Usuário', 'Formato inválido', 'warning');
+        }
+      }
+    }
+
+    async function test5_RealConnection() {
+      const token = localStorage.getItem('user_token');
+      
+      if (!token) {
+        addResult(
+          '⏭️ Teste 5: Conexão Real',
+          'PULADO: Sem token. Faça login primeiro.',
+          'warning'
+        );
+        return;
+      }
+
+      try {
+        addResult('⏳ Teste 5: Conexão Real', 'Testando conexão com a API...', 'info');
+        
+        // Testar endpoint /auth/me
+        const result = await api.getMe();
+        
+        addResult(
+          '✅ Teste 5: Conexão Real',
+          `PASSOU: Conectado como ${result.name} (${result.email})`,
+          'success'
+        );
+        
+        addCode('Resposta da API', JSON.stringify(result, null, 2));
+        
+      } catch (error) {
+        addResult(
+          '❌ Teste 5: Conexão Real',
+          `FALHOU: ${error.message}`,
+          'error'
+        );
+        
+        addCode('Detalhes do Erro', error.stack || error.toString());
+      }
+    }
+
+    // Executar automaticamente ao carregar
+    window.addEventListener('load', () => {
+      setTimeout(runAllTests, 500);
+    });
+  </script>
+</body>
+</html>
