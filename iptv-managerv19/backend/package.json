@@ -1,0 +1,30 @@
+{
+  "name": "iptv-manager-backend",
+  "version": "2.0.0",
+  "description": "Backend do IPTV Manager com suporte Sigma e CloudNation",
+  "main": "src/server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node --experimental-global-webcrypto src/server.js",
+    "dev": "nodemon --experimental-global-webcrypto src/server.js"
+  },
+  "keywords": ["iptv", "cloudnation", "sigma", "automation"],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "express-rate-limit": "^7.1.5",
+    "helmet": "^7.1.0",
+    "dotenv": "^16.3.1",
+    "better-sqlite3": "^9.2.2",
+    "pg": "^8.11.3",
+    "axios": "^1.6.5",
+    "cheerio": "^1.0.0-rc.12",
+    "jsonwebtoken": "^9.0.2",
+    "socks-proxy-agent": "^8.0.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  }
+}
