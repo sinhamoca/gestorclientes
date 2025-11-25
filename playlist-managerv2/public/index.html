@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IPTV Playlist Manager</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <!-- Header -->
+    <header>
+        <h1>📺 IPTV Playlist Manager</h1>
+        <div id="user-info"></div>
+    </header>
+
+    <!-- Main Container -->
+    <main>
+        <!-- Mensagens -->
+        <div id="message-container"></div>
+
+        <!-- Loading -->
+        <div id="loading" class="loading hidden">
+            <div class="spinner"></div>
+            <p>Carregando...</p>
+        </div>
+
+        <!-- Listagem de Clientes -->
+        <section id="clients-section">
+            <h2>Seus Clientes</h2>
+            
+            <!-- Barra de Filtros -->
+            <div class="clients-toolbar">
+                <div class="filter-group">
+                    <label for="server-filter">Filtrar por servidor:</label>
+                    <select id="server-filter">
+                        <option value="">Todos os servidores</option>
+                    </select>
+                </div>
+                
+                <div class="selection-info">
+                    <span id="selection-count">0 selecionados</span>
+                    <button id="bulk-dns-btn" class="btn btn-warning hidden" onclick="openBulkDnsModal()">
+                        🔄 Mudar DNS em Massa
+                    </button>
+                </div>
+            </div>
+            
+            <div class="table-container">
+                <table id="clients-table">
+                    <thead>
+                        <tr>
+                            <th class="checkbox-col">
+                                <input type="checkbox" id="select-all" title="Selecionar todos">
+                            </th>
+                            <th>Nome</th>
+                            <th>Servidor</th>
+                            <th>MAC Address</th>
+                            <th>Device Key</th>
+                            <th>Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody id="clients-tbody">
+                        <tr>
+                            <td colspan="6" class="text-center">Carregando clientes...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- Modal: Seleção de Domínio (IBOPlayer) -->
+        <div id="domain-modal" class="modal hidden">
+            <div class="modal-content">
+                <h3>Selecione o Domínio</h3>
+                <p>Cliente: <strong id="domain-client-name"></strong></p>
+                <p>Escolha o domínio do IBOPlayer:</p>
+                <div class="domain-buttons">
+                    <button class="btn btn-primary" onclick="selectDomain('iboiptv.com')">iboiptv.com</button>
+                    <button class="btn btn-primary" onclick="selectDomain('bobplayer.com')">bobplayer.com</button>
+                </div>
+                <button class="btn btn-secondary" onclick="closeDomainModal()">Cancelar</button>
+            </div>
+        </div>
+
+        <!-- Modal: Gerenciamento de Playlists -->
+        <div id="playlist-modal" class="modal hidden">
+            <div class="modal-content modal-large">
+                <div class="modal-header">
+                    <h3 id="playlist-modal-title">Gerenciar Playlists</h3>
+                    <button class="close-btn" onclick="closePlaylistModal()">&times;</button>
+                </div>
+
+                <div id="player-loading" class="loading hidden">
+                    <div class="spinner"></div>
+                    <p id="player-loading-text">Fazendo login...</p>
+                </div>
+
+                <div id="playlist-content" class="hidden">
+                    <!-- Lista de Playlists -->
+                    <div class="playlist-list">
+                        <h4>Playlists Atuais</h4>
+                        <div class="table-container">
+                            <table id="playlists-table">
+                                <thead>
+                                    <tr>
+                                        <th>Nome</th>
+                                        <th>URL</th>
+                                        <th>Tipo</th>
+                                        <th>Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="playlists-tbody">
+                                    <tr>
+                                        <td colspan="4" class="text-center">Nenhuma playlist</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Formulário -->
+                    <div class="playlist-form">
+                        <h4 id="form-title">Adicionar Nova Playlist</h4>
+                        <form id="playlist-form">
+                            <input type="hidden" id="playlist-id" value="">
+                            
+                            <div class="form-group">
+                                <label for="playlist-name">Nome:</label>
+                                <input type="text" id="playlist-name" required>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="playlist-url">URL:</label>
+                                <input type="url" id="playlist-url" required>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="playlist-type">Tipo:</label>
+                                <select id="playlist-type">
+                                    <option value="m3u">M3U / M3U8</option>
+                                    <option value="xtream">Xtream Codes</option>
+                                    <option value="general">Geral</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label>
+                                    <input type="checkbox" id="playlist-protect">
+                                    Proteger com PIN
+                                </label>
+                            </div>
+
+                            <div class="form-group hidden" id="pin-group">
+                                <label for="playlist-pin">PIN:</label>
+                                <input type="text" id="playlist-pin" maxlength="4">
+                            </div>
+
+                            <div class="form-actions">
+                                <button type="submit" class="btn btn-primary">Salvar</button>
+                                <button type="button" class="btn btn-secondary" onclick="resetForm()">Cancelar</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" onclick="closePlaylistModal()">Fechar</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ========== MODAL: MUDAR DNS (NOVO!) ========== -->
+        <div id="dns-modal" class="modal hidden">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>🔄 Mudar DNS/URL</h3>
+                    <button class="close-btn" onclick="closeDnsModal()">&times;</button>
+                </div>
+                
+                <p>Cliente: <strong id="dns-client-name"></strong></p>
+                
+                <div class="dns-options">
+                    <h4>Selecione o modo de alteração:</h4>
+                    
+                    <div class="dns-option">
+                        <label>
+                            <input type="radio" name="dns-mode" id="dns-mode-all" value="all" checked onchange="selectDnsMode('all')">
+                            <strong>🔄 Substituir TODAS</strong>
+                            <small>Altera o DNS de todas as playlists</small>
+                        </label>
+                    </div>
+                    
+                    <div class="dns-option">
+                        <label>
+                            <input type="radio" name="dns-mode" id="dns-mode-first" value="first" onchange="selectDnsMode('first')">
+                            <strong>1️⃣ Apenas a Primeira</strong>
+                            <small>Altera somente a primeira playlist</small>
+                        </label>
+                    </div>
+                    
+                    <div class="dns-option">
+                        <label>
+                            <input type="radio" name="dns-mode" id="dns-mode-detect" value="detect" onchange="selectDnsMode('detect')">
+                            <strong>🔍 Detectar e Substituir</strong>
+                            <small>Altera apenas playlists com o DNS antigo informado</small>
+                        </label>
+                    </div>
+                </div>
+                
+                <div class="form-group hidden" id="dns-old-group">
+                    <label for="dns-old">DNS/URL Antigo:</label>
+                    <input type="text" id="dns-old" placeholder="https://servidor-antigo.com">
+                    <small class="form-hint">Informe o DNS que será substituído</small>
+                </div>
+                
+                <div class="form-group">
+                    <label for="dns-new">Novo DNS/URL:</label>
+                    <input type="text" id="dns-new" placeholder="https://novo-servidor.com" required>
+                    <small class="form-hint">Apenas o domínio, sem /get.php ou parâmetros</small>
+                </div>
+                
+                <div class="dns-example">
+                    <strong>Exemplo:</strong><br>
+                    <code>https://popo65.live/get.php?user=123&pass=456</code><br>
+                    ↓ Novo DNS: <code>https://4fun.com</code> ↓<br>
+                    <code>https://4fun.com/get.php?user=123&pass=456</code>
+                </div>
+                
+                <div class="form-actions">
+                    <button type="button" class="btn btn-primary" onclick="executeDnsChange()">
+                        🔄 Executar Mudança
+                    </button>
+                    <button type="button" class="btn btn-secondary" onclick="closeDnsModal()">
+                        Cancelar
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal: Loading de DNS -->
+        <div id="dns-loading-modal" class="modal hidden">
+            <div class="modal-content modal-small">
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <p id="dns-loading-text">Processando...</p>
+                </div>
+                <button class="btn btn-secondary" onclick="closeDnsLoadingModal()" style="margin-top: 1rem;">
+                    Cancelar
+                </button>
+            </div>
+        </div>
+
+        <!-- ========== MODAL: MUDAR DNS EM MASSA (NOVO!) ========== -->
+        <div id="bulk-dns-modal" class="modal hidden">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>🔄 Mudar DNS em Massa</h3>
+                    <button class="close-btn" onclick="closeBulkDnsModal()">&times;</button>
+                </div>
+                
+                <p><strong id="bulk-dns-count">0</strong> clientes selecionados</p>
+                <p class="bulk-dns-note">⚠️ Apenas clientes com aplicativo e credenciais configurados serão processados.</p>
+                
+                <div class="dns-options">
+                    <h4>Selecione o modo de alteração:</h4>
+                    
+                    <div class="dns-option">
+                        <label>
+                            <input type="radio" name="bulk-dns-mode" id="bulk-dns-mode-all" value="all" checked onchange="selectBulkDnsMode('all')">
+                            <strong>🔄 Substituir TODAS</strong>
+                            <small>Altera o DNS de todas as playlists de cada cliente</small>
+                        </label>
+                    </div>
+                    
+                    <div class="dns-option">
+                        <label>
+                            <input type="radio" name="bulk-dns-mode" id="bulk-dns-mode-first" value="first" onchange="selectBulkDnsMode('first')">
+                            <strong>1️⃣ Apenas a Primeira</strong>
+                            <small>Altera somente a primeira playlist de cada cliente</small>
+                        </label>
+                    </div>
+                    
+                    <div class="dns-option">
+                        <label>
+                            <input type="radio" name="bulk-dns-mode" id="bulk-dns-mode-detect" value="detect" onchange="selectBulkDnsMode('detect')">
+                            <strong>🔍 Detectar e Substituir</strong>
+                            <small>Altera apenas playlists com o DNS antigo informado</small>
+                        </label>
+                    </div>
+                </div>
+                
+                <div class="form-group hidden" id="bulk-dns-old-group">
+                    <label for="bulk-dns-old">DNS/URL Antigo:</label>
+                    <input type="text" id="bulk-dns-old" placeholder="https://servidor-antigo.com">
+                    <small class="form-hint">Informe o DNS que será substituído</small>
+                </div>
+                
+                <div class="form-group">
+                    <label for="bulk-dns-new">Novo DNS/URL:</label>
+                    <input type="text" id="bulk-dns-new" placeholder="https://novo-servidor.com" required>
+                    <small class="form-hint">Apenas o domínio, sem /get.php ou parâmetros</small>
+                </div>
+                
+                <div class="form-actions">
+                    <button type="button" class="btn btn-primary" onclick="executeBulkDnsChange()">
+                        🔄 Executar em Massa
+                    </button>
+                    <button type="button" class="btn btn-secondary" onclick="closeBulkDnsModal()">
+                        Cancelar
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal: Progresso de DNS em Massa -->
+        <div id="bulk-dns-progress-modal" class="modal hidden">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>🔄 Processando DNS em Massa</h3>
+                </div>
+                
+                <div class="bulk-progress-container">
+                    <div class="bulk-progress-bar">
+                        <div id="bulk-progress-fill" class="bulk-progress-fill" style="width: 0%"></div>
+                    </div>
+                    <p id="bulk-progress-text">Iniciando...</p>
+                    <p id="bulk-progress-detail" class="progress-detail"></p>
+                </div>
+                
+                <div id="bulk-progress-log" class="progress-log"></div>
+                
+                <div class="form-actions hidden" id="bulk-progress-actions">
+                    <button type="button" class="btn btn-primary" onclick="closeBulkProgressModal()">
+                        ✓ Concluir
+                    </button>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <footer>
+        <p>IPTV Playlist Manager v1.1</p>
+    </footer>
+
+    <script src="/js/app.js"></script>
+</body>
+</html>
