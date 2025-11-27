@@ -1,0 +1,35 @@
+version: '3.8'
+
+services:
+  iptv-playlist-manager:
+    build: .
+    container_name: iptv-playlist-manager
+    restart: unless-stopped
+    ports:
+      - "3005:3005"
+    environment:
+      - NODE_ENV=production
+      - PORT=3005
+      - DB_HOST=gestao_db
+      - DB_PORT=5432
+      - DB_NAME=gestao_clientes
+      - DB_USER=gestao_user
+      - DB_PASSWORD=${DB_PASSWORD}
+      - JWT_SECRET=${JWT_SECRET}
+      - CAPTCHA_API_KEY=${CAPTCHA_API_KEY}
+      - FRONTEND_URL=https://playlists.comprarecarga.shop
+      - GESTAO_CLIENTES_URL=https://api.comprarecarga.shop
+      - IBO_DOMAINS=iboiptv.com,bobplayer.com
+      - CORS_ORIGINS=https://comprarecarga.shop,https://api.comprarecarga.shop,https://playlists.comprarecarga.shop
+    networks:
+      - gestao-clientes_gestao_network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3005/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+networks:
+  gestao-clientes_gestao_network:
+    external: true

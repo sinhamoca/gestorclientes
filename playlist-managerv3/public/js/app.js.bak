@@ -1,0 +1,645 @@
+// ========== CONFIGURAÇÃO ==========
+const API_BASE = window.location.origin;
+let currentPlayer = null;
+let currentClient = null;
+let currentSession = null;
+
+// ========== ESTADO DE SELEÇÃO ==========
+let allClients = [];
+let filteredClients = [];
+let selectedClients = new Set();
+let servers = [];
+
+// ========== INICIALIZAÇÃO ==========
+document.addEventListener('DOMContentLoaded', () => {
+    checkAuth();
+    setupEventListeners();
+    setupSelectionListeners();
+});
+
+// ========== AUTENTICAÇÃO ==========
+async function checkAuth() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const tokenFromUrl = urlParams.get('token');
+    
+    if (tokenFromUrl) {
+        console.log('✅ Token recebido da URL');
+        localStorage.setItem('token', tokenFromUrl);
+        window.history.replaceState({}, document.title, window.location.pathname);
+    }
+    
+    const token = localStorage.getItem('user_token') || localStorage.getItem('token');
+    
+    if (!token) {
+        console.log('❌ Token não encontrado');
+        showMessage('Você precisa fazer login no sistema principal primeiro', 'error');
+        setTimeout(() => {
+            window.location.href = 'https://comprarecarga.shop';
+        }, 2000);
+        return;
+    }
+    
+    try {
+        const response = await fetch(`${API_BASE}/api/auth/me`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        
+        if (response.ok) {
+            const userData = await response.json();
+            console.log('✅ Token válido, usuário:', userData);
+            localStorage.setItem('user', JSON.stringify(userData));
+            document.getElementById('user-info').textContent = `Olá, ${userData.name || userData.email}`;
+            
+            await loadServers();
+            await loadClients();
+        } else {
+            console.log('❌ Token inválido');
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            showMessage('Sessão expirada. Faça login novamente.', 'error');
+            setTimeout(() => {
+                window.location.href = 'https://comprarecarga.shop';
+            }, 2000);
+        }
+    } catch (error) {
+        console.error('Erro ao validar token:', error);
+        showMessage('Erro de conexão. Tente novamente.', 'error');
+    }
+}
+
+// ========== HELPERS ==========
+function showLoading(show) {
+    document.getElementById('loading').classList.toggle('hidden', !show);
+}
+
+function showMessage(text, type = 'success') {
+    const container = document.getElementById('message-container');
+    const id = Date.now();
+    
+    container.innerHTML = `
+        <div class="message ${type}" id="msg-${id}">
+            <span>${text}</span>
+            <button onclick="this.parentElement.remove()">&times;</button>
+        </div>
+    `;
+    
+    setTimeout(() => {
+        const msg = document.getElementById(`msg-${id}`);
+        if (msg) msg.remove();
+    }, 5000);
+}
+
+async function apiRequest(endpoint, options = {}) {
+    const token = localStorage.getItem('user_token') || localStorage.getItem('token');
+    
+    const defaultOptions = {
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+        }
+    };
+    
+    const finalOptions = {
+        ...defaultOptions,
+        ...options,
+        headers: { ...defaultOptions.headers, ...options.headers }
+    };
+    
+    try {
+        const response = await fetch(`${API_BASE}${endpoint}`, finalOptions);
+        const data = await response.json();
+        
+        if (!response.ok) {
+            throw new Error(data.error || data.message || 'Erro na requisição');
+        }
+        
+        return data;
+    } catch (error) {
+        console.error('Erro na requisição:', error);
+        throw error;
+    }
+}
+
+function escapeHtml(text) {
+    if (!text) return '';
+    return text.replace(/[&<>"']/g, char => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    })[char]);
+}
+
+// ========== SERVIDORES ==========
+async function loadServers() {
+    try {
+        const data = await apiRequest('/api/clients/servers');
+        servers = data.servers || [];
+        populateServerFilter();
+    } catch (error) {
+        console.error('Erro ao carregar servidores:', error);
+    }
+}
+
+function populateServerFilter() {
+    const select = document.getElementById('server-filter');
+    select.innerHTML = '<option value="">Todos os servidores</option>';
+    
+    servers.forEach(server => {
+        const option = document.createElement('option');
+        option.value = server.id;
+        option.textContent = server.name;
+        select.appendChild(option);
+    });
+}
+
+// ========== CLIENTES ==========
+async function loadClients() {
+    showLoading(true);
+    
+    try {
+        const data = await apiRequest('/api/clients');
+        allClients = data.clients || [];
+        filteredClients = [...allClients];
+        displayClients(filteredClients);
+    } catch (error) {
+        showMessage('Erro ao carregar clientes: ' + error.message, 'error');
+    } finally {
+        showLoading(false);
+    }
+}
+
+function displayClients(clients) {
+    const tbody = document.getElementById('clients-tbody');
+    
+    if (!clients || clients.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center">Nenhum cliente encontrado</td></tr>';
+        updateSelectionCount();
+        return;
+    }
+    
+    tbody.innerHTML = clients.map(client => {
+        const isSelected = selectedClients.has(client.id);
+        const serverName = client.server_name || 'Sem servidor';
+        const macAddress = client.mac_address || '';
+        const deviceKey = client.device_key || '';
+        const playerType = client.player_type || '';
+        const playerDomain = client.player_domain || '';
+        
+        // Gerar o conteúdo da coluna de ação baseado no player_type
+        const actionContent = generateActionButton(client, macAddress, deviceKey, playerType, playerDomain);
+        
+        // Gerar badge do aplicativo
+        const playerBadge = generatePlayerBadge(playerType, playerDomain);
+        
+        return `
+            <tr class="${isSelected ? 'selected' : ''}" data-client-id="${client.id}" data-server-id="${client.server_id || ''}">
+                <td class="checkbox-col">
+                    <input type="checkbox" 
+                           class="client-checkbox" 
+                           data-client-id="${client.id}"
+                           ${isSelected ? 'checked' : ''}
+                           onchange="toggleClientSelection(${client.id})">
+                </td>
+                <td>${escapeHtml(client.name)}</td>
+                <td><span class="server-badge">${escapeHtml(serverName)}</span></td>
+                <td>${playerBadge}</td>
+                <td>
+                    <small class="credentials-info">
+                        ${macAddress ? `MAC: ${macAddress}` : ''}
+                        ${macAddress && deviceKey ? '<br>' : ''}
+                        ${deviceKey ? `Key: ${deviceKey.substring(0, 15)}${deviceKey.length > 15 ? '...' : ''}` : ''}
+                        ${!macAddress && !deviceKey ? '-' : ''}
+                    </small>
+                </td>
+                <td>${actionContent}</td>
+            </tr>
+        `;
+    }).join('');
+    
+    updateSelectionCount();
+}
+
+// Gera o badge visual do tipo de player
+function generatePlayerBadge(playerType, playerDomain) {
+    if (!playerType) {
+        return '<span class="player-badge player-none">Não configurado</span>';
+    }
+    
+    const badges = {
+        'iboplayer': `<span class="player-badge player-ibo">IBOPlayer</span>${playerDomain ? `<br><small class="domain-info">${playerDomain}</small>` : ''}`,
+        'ibopro': '<span class="player-badge player-ibopro">IBOPro</span>',
+        'vuplayer': '<span class="player-badge player-vu">VU Player</span>'
+    };
+    
+    return badges[playerType] || '<span class="player-badge player-none">Desconhecido</span>';
+}
+
+// Gera o botão de ação baseado no player_type
+function generateActionButton(client, macAddress, deviceKey, playerType, playerDomain) {
+    // Se não tem player configurado, mostrar aviso
+    if (!playerType) {
+        return `
+            <span class="config-warning" title="Configure o aplicativo no cadastro do cliente">
+                ⚠️ Configurar
+            </span>
+        `;
+    }
+    
+    // Se não tem MAC ou Device Key
+    if (!macAddress && !deviceKey) {
+        return `
+            <span class="config-warning" title="Preencha MAC Address ou Device Key no cadastro">
+                ⚠️ Sem credenciais
+            </span>
+        `;
+    }
+    
+    // Gerar botão específico baseado no tipo
+    const clientData = JSON.stringify({
+        id: client.id,
+        name: client.name,
+        mac_address: macAddress,
+        device_key: deviceKey,
+        player_type: playerType,
+        player_domain: playerDomain
+    }).replace(/"/g, '&quot;');
+    
+    const buttonLabels = {
+        'iboplayer': '🔵 Gerenciar Playlists',
+        'ibopro': '🟣 Gerenciar Playlists',
+        'vuplayer': '🟢 Gerenciar Playlists'
+    };
+    
+    const buttonClasses = {
+        'iboplayer': 'btn-ibo',
+        'ibopro': 'btn-ibopro',
+        'vuplayer': 'btn-vu'
+    };
+    
+    return `
+        <button class="btn btn-player ${buttonClasses[playerType]}" onclick='connectPlayerDirect(${clientData})'>
+            ${buttonLabels[playerType]}
+        </button>
+    `;
+}
+
+// ========== CONEXÃO COM PLAYERS ==========
+// Nova função que conecta diretamente usando os dados do cliente
+function connectPlayerDirect(clientData) {
+    currentClient = {
+        id: clientData.id,
+        name: clientData.name,
+        mac_address: clientData.mac_address,
+        device_key: clientData.device_key
+    };
+    currentPlayer = clientData.player_type;
+    
+    // Para IBOPlayer, usa o domínio salvo
+    if (clientData.player_type === 'iboplayer') {
+        if (!clientData.player_domain) {
+            showMessage('Domínio do IBOPlayer não configurado. Atualize o cadastro do cliente.', 'error');
+            return;
+        }
+        doLogin('iboplayer', clientData.mac_address, clientData.device_key, clientData.player_domain);
+    } else {
+        doLogin(clientData.player_type, clientData.mac_address, clientData.device_key);
+    }
+}
+
+// ========== LOGIN NOS PLAYERS ==========
+async function doLogin(player, macAddress, deviceKey, domain = null) {
+    // Abrir modal de playlists
+    document.getElementById('playlist-modal').classList.remove('hidden');
+    document.getElementById('playlist-modal-title').textContent = 
+        `${currentClient.name} - ${getPlayerLabel(player)}`;
+    
+    // Mostrar loading
+    document.getElementById('player-loading').classList.remove('hidden');
+    document.getElementById('playlist-content').classList.add('hidden');
+    
+    const loadingText = document.getElementById('player-loading-text');
+    loadingText.textContent = player === 'iboplayer' 
+        ? 'Fazendo login... Isso pode levar até 60 segundos (resolvendo captcha).' 
+        : 'Fazendo login...';
+    
+    try {
+        let endpoint = '';
+        let body = {};
+        
+        if (player === 'iboplayer') {
+            endpoint = '/api/players/iboplayer/login';
+            body = { mac_address: macAddress, device_key: deviceKey, domain: domain };
+        } else if (player === 'ibopro') {
+            endpoint = '/api/players/ibopro/login';
+            body = { mac_address: macAddress, password: deviceKey };
+        } else if (player === 'vuplayer') {
+            endpoint = '/api/players/vuplayer/login';
+            body = { mac_address: macAddress, device_key: deviceKey };
+        }
+        
+        const response = await apiRequest(endpoint, {
+            method: 'POST',
+            body: JSON.stringify(body)
+        });
+        
+        if (response.success) {
+            currentSession = response.session;
+            sessionStorage.setItem(`${player}_session`, JSON.stringify(response.session));
+            showMessage('Login realizado com sucesso!', 'success');
+            loadPlaylists();
+        } else {
+            throw new Error(response.error || 'Erro ao conectar');
+        }
+    } catch (error) {
+        showMessage('Erro ao conectar: ' + error.message, 'error');
+        closePlaylistModal();
+    }
+}
+
+function getPlayerLabel(player) {
+    const labels = {
+        'iboplayer': 'IBOPlayer',
+        'ibopro': 'IBOPro',
+        'vuplayer': 'VU Player'
+    };
+    return labels[player] || player.toUpperCase();
+}
+
+function closePlaylistModal() {
+    document.getElementById('playlist-modal').classList.add('hidden');
+    document.getElementById('player-loading').classList.add('hidden');
+    document.getElementById('playlist-content').classList.add('hidden');
+    currentSession = null;
+    resetForm();
+}
+
+// ========== SELEÇÃO DE CLIENTES ==========
+function setupSelectionListeners() {
+    document.getElementById('select-all').addEventListener('change', function() {
+        toggleSelectAll(this.checked);
+    });
+    
+    document.getElementById('server-filter').addEventListener('change', function() {
+        filterByServer(this.value);
+    });
+}
+
+function toggleClientSelection(clientId) {
+    if (selectedClients.has(clientId)) {
+        selectedClients.delete(clientId);
+    } else {
+        selectedClients.add(clientId);
+    }
+    
+    const row = document.querySelector(`tr[data-client-id="${clientId}"]`);
+    if (row) {
+        row.classList.toggle('selected', selectedClients.has(clientId));
+    }
+    
+    updateSelectionCount();
+    updateSelectAllCheckbox();
+}
+
+function toggleSelectAll(checked) {
+    filteredClients.forEach(client => {
+        if (checked) {
+            selectedClients.add(client.id);
+        } else {
+            selectedClients.delete(client.id);
+        }
+    });
+    
+    document.querySelectorAll('.client-checkbox').forEach(checkbox => {
+        checkbox.checked = checked;
+    });
+    
+    document.querySelectorAll('#clients-tbody tr[data-client-id]').forEach(row => {
+        row.classList.toggle('selected', checked);
+    });
+    
+    updateSelectionCount();
+}
+
+function updateSelectAllCheckbox() {
+    const selectAll = document.getElementById('select-all');
+    const visibleCheckboxes = document.querySelectorAll('.client-checkbox');
+    const checkedCount = document.querySelectorAll('.client-checkbox:checked').length;
+    
+    if (visibleCheckboxes.length === 0) {
+        selectAll.checked = false;
+        selectAll.indeterminate = false;
+    } else if (checkedCount === 0) {
+        selectAll.checked = false;
+        selectAll.indeterminate = false;
+    } else if (checkedCount === visibleCheckboxes.length) {
+        selectAll.checked = true;
+        selectAll.indeterminate = false;
+    } else {
+        selectAll.checked = false;
+        selectAll.indeterminate = true;
+    }
+}
+
+function updateSelectionCount() {
+    const count = selectedClients.size;
+    document.getElementById('selection-count').textContent = 
+        `${count} selecionado${count !== 1 ? 's' : ''}`;
+}
+
+function filterByServer(serverId) {
+    if (!serverId) {
+        filteredClients = [...allClients];
+    } else {
+        filteredClients = allClients.filter(client => 
+            String(client.server_id) === String(serverId)
+        );
+    }
+    
+    displayClients(filteredClients);
+    updateSelectAllCheckbox();
+}
+
+function getSelectedClients() {
+    return allClients.filter(client => selectedClients.has(client.id));
+}
+
+// ========== PLAYLISTS ==========
+async function loadPlaylists() {
+    try {
+        let endpoint = '';
+        
+        if (currentPlayer === 'iboplayer') {
+            endpoint = '/api/players/iboplayer/playlists/list';
+        } else if (currentPlayer === 'ibopro') {
+            endpoint = '/api/players/ibopro/playlists/list';
+        } else if (currentPlayer === 'vuplayer') {
+            endpoint = '/api/players/vuplayer/playlists/list';
+        }
+        
+        const response = await apiRequest(endpoint, {
+            method: 'POST',
+            body: JSON.stringify({ session: currentSession })
+        });
+        
+        if (response.success) {
+            displayPlaylists(response.playlists);
+            document.getElementById('player-loading').classList.add('hidden');
+            document.getElementById('playlist-content').classList.remove('hidden');
+        } else {
+            throw new Error(response.error || 'Erro ao listar playlists');
+        }
+    } catch (error) {
+        showMessage('Erro ao carregar playlists: ' + error.message, 'error');
+    }
+}
+
+function displayPlaylists(playlists) {
+    const tbody = document.getElementById('playlists-tbody');
+    
+    if (!playlists || playlists.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="4" class="text-center">Nenhuma playlist cadastrada</td></tr>';
+        return;
+    }
+    
+    tbody.innerHTML = playlists.map(playlist => {
+        const id = playlist._id || playlist.id || playlist.playlist_id;
+        const name = playlist.playlist_name || playlist.name;
+        const url = playlist.playlist_url || playlist.url;
+        const type = playlist.playlist_type || playlist.type || 'general';
+        
+        return `
+            <tr>
+                <td>${name}</td>
+                <td><small>${url.substring(0, 50)}...</small></td>
+                <td>${type}</td>
+                <td>
+                    <button class="btn btn-success btn-small" onclick='editPlaylistBtn(${JSON.stringify({id, name, url, type})})'>
+                        Editar
+                    </button>
+                    <button class="btn btn-danger btn-small" onclick="deletePlaylist('${id}')">
+                        Deletar
+                    </button>
+                </td>
+            </tr>
+        `;
+    }).join('');
+}
+
+// ========== FORMULÁRIO DE PLAYLIST ==========
+function setupEventListeners() {
+    document.getElementById('playlist-protect').addEventListener('change', function() {
+        const pinGroup = document.getElementById('pin-group');
+        if (this.checked) {
+            pinGroup.classList.remove('hidden');
+        } else {
+            pinGroup.classList.add('hidden');
+            document.getElementById('playlist-pin').value = '';
+        }
+    });
+    
+    document.getElementById('playlist-form').addEventListener('submit', handleFormSubmit);
+}
+
+async function handleFormSubmit(e) {
+    e.preventDefault();
+    
+    const playlistId = document.getElementById('playlist-id').value;
+    const name = document.getElementById('playlist-name').value;
+    const url = document.getElementById('playlist-url').value;
+    const type = document.getElementById('playlist-type').value;
+    const protect = document.getElementById('playlist-protect').checked;
+    const pin = document.getElementById('playlist-pin').value;
+    
+    const data = {
+        name, url, type, protect,
+        pin: protect ? pin : '',
+        session: currentSession
+    };
+    
+    showPlaylistLoading(true, playlistId ? 'Editando playlist...' : 'Adicionando playlist...');
+    
+    try {
+        let endpoint = '';
+        let method = 'POST';
+        
+        if (playlistId) {
+            endpoint = `/api/players/${currentPlayer}/playlists/${playlistId}`;
+            method = 'PUT';
+        } else {
+            endpoint = `/api/players/${currentPlayer}/playlists`;
+        }
+        
+        const response = await apiRequest(endpoint, {
+            method: method,
+            body: JSON.stringify(data)
+        });
+        
+        if (response.success) {
+            showMessage(playlistId ? 'Playlist editada!' : 'Playlist adicionada!', 'success');
+            resetForm();
+            loadPlaylists();
+        } else {
+            throw new Error(response.error || 'Erro ao salvar');
+        }
+    } catch (error) {
+        showMessage('Erro: ' + error.message, 'error');
+    } finally {
+        showPlaylistLoading(false);
+    }
+}
+
+function editPlaylistBtn(playlist) {
+    document.getElementById('playlist-id').value = playlist.id;
+    document.getElementById('playlist-name').value = playlist.name;
+    document.getElementById('playlist-url').value = playlist.url;
+    document.getElementById('playlist-type').value = playlist.type || 'm3u';
+    document.getElementById('form-title').textContent = 'Editar Playlist';
+}
+
+async function deletePlaylist(playlistId) {
+    if (!confirm('Tem certeza que deseja excluir esta playlist?')) return;
+    
+    showPlaylistLoading(true, 'Excluindo playlist...');
+    
+    try {
+        const response = await apiRequest(`/api/players/${currentPlayer}/playlists/${playlistId}`, {
+            method: 'DELETE',
+            body: JSON.stringify({ session: currentSession })
+        });
+        
+        if (response.success) {
+            showMessage('Playlist excluída!', 'success');
+            loadPlaylists();
+        } else {
+            throw new Error(response.error || 'Erro ao excluir');
+        }
+    } catch (error) {
+        showMessage('Erro: ' + error.message, 'error');
+    } finally {
+        showPlaylistLoading(false);
+    }
+}
+
+function resetForm() {
+    document.getElementById('playlist-id').value = '';
+    document.getElementById('playlist-name').value = '';
+    document.getElementById('playlist-url').value = '';
+    document.getElementById('playlist-type').value = 'm3u';
+    document.getElementById('playlist-protect').checked = false;
+    document.getElementById('pin-group').classList.add('hidden');
+    document.getElementById('playlist-pin').value = '';
+    document.getElementById('form-title').textContent = 'Adicionar Nova Playlist';
+}
+
+function showPlaylistLoading(show, text = 'Processando...') {
+    const loading = document.getElementById('player-loading');
+    const content = document.getElementById('playlist-content');
+    const loadingText = document.getElementById('player-loading-text');
+    
+    if (show) {
+        loadingText.textContent = text;
+        loading.classList.remove('hidden');
+        content.classList.add('hidden');
+    } else {
+        loading.classList.add('hidden');
+        content.classList.remove('hidden');
+    }
+}
