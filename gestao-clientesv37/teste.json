@@ -1,0 +1,34 @@
+[
+  {
+    "id": "782",
+    "nome": "Francisco antonio",
+    "whatsapp": "558892088761",
+    "usuario": "797456436",
+    "senha": "65132013546",
+    "id_externo": "81720",
+    "vencimento": "30/11/2025",
+    "status": "Ativo",
+    "data_cadastro": "16/05/2023",
+    "plano": "1 tela 20 R$",
+    "servidor": "STAR",
+    "info_adicional_1": "",
+    "info_adicional_2": "Sem informação",
+    "info_adicional_3": "Sem informação"
+  },
+  {
+    "id": "2836",
+    "nome": "Dandhili",
+    "whatsapp": "5511933262125",
+    "usuario": "39eoskeoe1okwjnmjjis",
+    "senha": "E0ow2osl7",
+    "id_externo": "Sem Código",
+    "vencimento": "30/11/2025",
+    "status": "Ativo",
+    "data_cadastro": "25/11/2024",
+    "plano": "UNITV MENSAL 24,90",
+    "servidor": "UNITV",
+    "info_adicional_1": "",
+    "info_adicional_2": "Sem informação",
+    "info_adicional_3": "Sem informação"
+  }
+]
