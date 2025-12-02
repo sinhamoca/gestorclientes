@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>IPTV Manager - Sistema de Gestão</title>
+  
+  <!-- Fonte Space Grotesk -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- React -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  
+  <!-- Favicon -->
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📺</text></svg>">
+  
+  <!-- Custom Styles - TEMA DARK -->
+  <link rel="stylesheet" href="./css/styles.css">
+</head>
+<body>
+  <div id="root"></div>
+  
+  <!-- Scripts Base -->
+  <script src="./js/config.js"></script>
+  <script src="./js/auth.js"></script>
+  <script src="./js/api.js"></script>
+  <script src="./js/cloudnation.js"></script>
+  
+  <!-- Scripts Sigma (NOVOS) -->
+  <script src="./js/sigma-api.js"></script>
+  <script src="./js/SigmaCredentialsModal.js"></script>
+  <script src="./js/SigmaPackagesPage.js"></script>
+  <script src="./js/SigmaSyncModal.js"></script>
+
+  <!-- Koffice -->
+  <script src="js/kofficeAPI.js"></script>
+  <script src="js/KofficeCredentialsModal.js"></script>
+  <script src="js/KofficeClientCaptureModal.js"></script>
+  <script src="js/KofficeSyncModal.js"></script>
+
+  <!-- Uniplay -->
+  <script src="js/uniplayAPI.js"></script>
+  <script src="js/UniplayCredentialsModal.js"></script>
+  
+  <!-- club -->
+  <script src="js/club.js"></script>
+  <script src="js/ClubSyncModal.js"></script>
+
+  <!-- Rush -->
+  <script src="js/rushAPI.js"></script>
+  <script src="js/RushCredentialsModal.js"></script>
+
+  <!-- App Principal - INALTERADO -->
+  <script src="./js/app.js"></script>
+</body>
+</html>
