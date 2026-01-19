@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Logs do Sistema - Gestão de Clientes</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📋</text></svg>">
+  
+  <!-- Importar fonte Space Grotesk igual ao sistema principal -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <style>
+    /* ==================== CONFIGURAÇÕES GLOBAIS ==================== */
+    * {
+      font-family: 'Space Grotesk', sans-serif;
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      background: #0f172a;
+      min-height: 100vh;
+    }
+
+    /* ==================== ANIMATED BACKGROUND LINES ==================== */
+    .bg-lines {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      opacity: 0.05;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .bg-lines::before,
+    .bg-lines::after {
+      content: '';
+      position: absolute;
+      width: 2px;
+      height: 100%;
+      background: linear-gradient(180deg, transparent, #3b82f6, transparent);
+      animation: moveLine 10s linear infinite;
+    }
+
+    .bg-lines::before { left: 20%; }
+    .bg-lines::after { right: 20%; animation-delay: 5s; }
+
+    @keyframes moveLine {
+      0% { transform: translateY(-100%); }
+      100% { transform: translateY(100%); }
+    }
+
+    /* ==================== GRADIENT CARDS ==================== */
+    .gradient-card-blue {
+      background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .gradient-card-green {
+      background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .gradient-card-red {
+      background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .gradient-card-purple {
+      background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .gradient-card-blue::before,
+    .gradient-card-green::before,
+    .gradient-card-red::before,
+    .gradient-card-purple::before {
+      content: '';
+      position: absolute;
+      top: -50%;
+      right: -50%;
+      width: 200%;
+      height: 200%;
+      background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+      animation: pulse 3s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 0.5; transform: scale(1); }
+      50% { opacity: 1; transform: scale(1.05); }
+    }
+
+    /* ==================== STAT CARD HOVER ==================== */
+    .stat-card-hover {
+      transition: all 0.3s ease;
+    }
+
+    .stat-card-hover:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.5);
+    }
+
+    /* ==================== TABLES ==================== */
+    .table-dark {
+      border-spacing: 0 8px;
+      border-collapse: separate;
+    }
+
+    .table-dark tbody tr {
+      background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+      transition: all 0.3s ease;
+      border-left: 4px solid transparent;
+    }
+
+    .table-dark tbody tr:hover {
+      background: linear-gradient(135deg, #334155 0%, #475569 100%);
+      transform: translateX(8px);
+      box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5);
+      border-left-color: #3b82f6;
+    }
+
+    .table-dark tbody td:first-child {
+      border-top-left-radius: 12px;
+      border-bottom-left-radius: 12px;
+    }
+
+    .table-dark tbody td:last-child {
+      border-top-right-radius: 12px;
+      border-bottom-right-radius: 12px;
+    }
+
+    /* ==================== INPUTS ==================== */
+    .input-dark {
+      background: #1e293b;
+      border: 2px solid #334155;
+      border-radius: 12px;
+      padding: 12px 16px;
+      color: white;
+      transition: all 0.3s ease;
+    }
+
+    .input-dark::placeholder { color: #64748b; }
+
+    .input-dark:focus {
+      outline: none;
+      border-color: #3b82f6;
+      background: #0f172a;
+      box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1);
+    }
+
+    /* ==================== BUTTONS ==================== */
+    .btn-gradient {
+      background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+      padding: 12px 24px;
+      border-radius: 12px;
+      font-weight: 700;
+      transition: all 0.3s ease;
+      box-shadow: 0 10px 30px -10px rgba(59, 130, 246, 0.5);
+      border: none;
+      color: white;
+    }
+
+    .btn-gradient:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 15px 40px -10px rgba(59, 130, 246, 0.7);
+    }
+
+    .nav-btn {
+      padding: 10px 20px;
+      border-radius: 12px;
+      font-weight: 600;
+      transition: all 0.3s ease;
+      background: #1e293b;
+      color: white;
+      border: 2px solid #334155;
+    }
+
+    .nav-btn:hover {
+      background: #334155;
+      border-color: #3b82f6;
+      transform: translateY(-2px);
+    }
+
+    .nav-btn.active {
+      background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+      border-color: #3b82f6;
+    }
+
+    /* ==================== BADGES ==================== */
+    .badge-success {
+      background: rgba(16, 185, 129, 0.2);
+      color: #10b981;
+      border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+
+    .badge-error {
+      background: rgba(239, 68, 68, 0.2);
+      color: #ef4444;
+      border: 1px solid rgba(239, 68, 68, 0.3);
+    }
+
+    .badge-pending {
+      background: rgba(245, 158, 11, 0.2);
+      color: #f59e0b;
+      border: 1px solid rgba(245, 158, 11, 0.3);
+    }
+
+    /* ==================== LOADER ==================== */
+    .loader {
+      border: 4px solid #334155;
+      border-top: 4px solid #3b82f6;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    /* ==================== SCROLLBAR ==================== */
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-track { background: #1e293b; }
+    ::-webkit-scrollbar-thumb { background: #475569; border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: #64748b; }
+
+    /* ==================== ANIMATIONS ==================== */
+    .fade-in {
+      animation: fadeIn 0.3s ease-out;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(-10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ==================== MOBILE CARD ==================== */
+    .mobile-card {
+      background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+      border-radius: 16px;
+      border-left: 4px solid #3b82f6;
+    }
+  </style>
+</head>
+<body>
+  <!-- Background animado -->
+  <div class="bg-lines"></div>
+  
+  <div id="root" class="relative z-10"></div>
+
+  <!-- Configurações -->
+  <script src="./js/config.js"></script>
+  
+  <!-- API Client -->
+  <script src="./js/api.js"></script>
+  
+  <!-- Página de Logs -->
+  <script src="./js/components/ActivityLogsPage.js" type="text/babel"></script>
+
+  <!-- Inicialização -->
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+
+    function AuthWrapper() {
+      const [isAuthenticated, setIsAuthenticated] = useState(false);
+      const [loading, setLoading] = useState(true);
+
+      useEffect(() => {
+        checkAuth();
+        // Inicializar ícones Lucide
+        if (window.lucide) {
+          window.lucide.createIcons();
+        }
+      }, []);
+
+      const checkAuth = async () => {
+        const token = localStorage.getItem(STORAGE_KEYS.TOKEN);
+        
+        if (!token) {
+          window.location.href = '/';
+          return;
+        }
+
+        try {
+          await api.getMe();
+          setIsAuthenticated(true);
+        } catch (error) {
+          console.error('Auth failed:', error);
+          window.location.href = '/';
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      if (loading) {
+        return (
+          <div className="min-h-screen flex items-center justify-center">
+            <div className="text-center">
+              <div className="loader mx-auto mb-4"></div>
+              <p className="text-slate-400">Verificando autenticação...</p>
+            </div>
+          </div>
+        );
+      }
+
+      if (!isAuthenticated) {
+        return null;
+      }
+
+      return <ActivityLogsPage />;
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<AuthWrapper />);
+  </script>
+</body>
+</html>

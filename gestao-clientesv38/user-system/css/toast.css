@@ -1,0 +1,259 @@
+/* ========================================
+   🔔 TOAST NOTIFICATIONS - CSS
+   Sistema de notificações animadas
+   
+   Arquivo: user-system/css/toast.css
+   ======================================== */
+
+/* ==========================================
+   CONTAINER
+   ========================================== */
+.toast-container {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 99999;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  pointer-events: none;
+  max-width: 400px;
+  width: calc(100% - 40px);
+}
+
+@media (max-width: 480px) {
+  .toast-container {
+    top: 10px;
+    right: 10px;
+    left: 10px;
+    width: auto;
+  }
+}
+
+/* ==========================================
+   TOAST BASE
+   ========================================== */
+.toast {
+  position: relative;
+  background: linear-gradient(145deg, #1e293b, #0f172a);
+  border-radius: 12px;
+  padding: 16px 20px;
+  padding-right: 44px;
+  box-shadow: 
+    0 10px 40px rgba(0, 0, 0, 0.4),
+    0 0 0 1px rgba(255, 255, 255, 0.05);
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  pointer-events: auto;
+  overflow: hidden;
+  backdrop-filter: blur(10px);
+  animation: toastSlideIn 0.4s cubic-bezier(0.21, 1.02, 0.73, 1) forwards;
+}
+
+.toast.toast-exiting {
+  animation: toastSlideOut 0.3s ease forwards;
+}
+
+/* ==========================================
+   VARIANTES (Success, Error, Warning, Info)
+   ========================================== */
+
+/* ✅ Sucesso */
+.toast.toast-success { border-left: 4px solid #22c55e; }
+.toast.toast-success .toast-icon {
+  background: linear-gradient(135deg, #22c55e, #16a34a);
+  box-shadow: 0 0 20px rgba(34, 197, 94, 0.3);
+}
+.toast.toast-success .toast-progress {
+  background: linear-gradient(90deg, #22c55e, #4ade80);
+}
+
+/* ❌ Erro */
+.toast.toast-error { border-left: 4px solid #ef4444; }
+.toast.toast-error .toast-icon {
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+  box-shadow: 0 0 20px rgba(239, 68, 68, 0.3);
+  animation: iconShake 0.5s ease;
+}
+.toast.toast-error .toast-progress {
+  background: linear-gradient(90deg, #ef4444, #f87171);
+}
+
+/* ⚠️ Warning */
+.toast.toast-warning { border-left: 4px solid #f59e0b; }
+.toast.toast-warning .toast-icon {
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  box-shadow: 0 0 20px rgba(245, 158, 11, 0.3);
+}
+.toast.toast-warning .toast-progress {
+  background: linear-gradient(90deg, #f59e0b, #fbbf24);
+}
+
+/* ℹ️ Info */
+.toast.toast-info { border-left: 4px solid #3b82f6; }
+.toast.toast-info .toast-icon {
+  background: linear-gradient(135deg, #3b82f6, #2563eb);
+  box-shadow: 0 0 20px rgba(59, 130, 246, 0.3);
+}
+.toast.toast-info .toast-progress {
+  background: linear-gradient(90deg, #3b82f6, #60a5fa);
+}
+
+/* ==========================================
+   ÍCONE
+   ========================================== */
+.toast-icon {
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 14px;
+  font-weight: bold;
+}
+
+.toast-icon svg {
+  width: 16px;
+  height: 16px;
+  stroke: white;
+  stroke-width: 2.5;
+  fill: none;
+}
+
+/* Animação check */
+.toast-success .toast-icon svg {
+  stroke-dasharray: 30;
+  stroke-dashoffset: 30;
+  animation: drawCheck 0.4s ease 0.2s forwards;
+}
+
+/* ==========================================
+   CONTEÚDO
+   ========================================== */
+.toast-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.toast-title {
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: #f1f5f9;
+  margin-bottom: 2px;
+  line-height: 1.4;
+}
+
+.toast-message {
+  font-size: 0.85rem;
+  color: #94a3b8;
+  line-height: 1.5;
+  word-wrap: break-word;
+}
+
+/* ==========================================
+   BOTÃO FECHAR
+   ========================================== */
+.toast-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: rgba(255, 255, 255, 0.1);
+  color: #64748b;
+  cursor: pointer;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  line-height: 1;
+  transition: all 0.2s ease;
+  padding: 0;
+}
+
+.toast-close:hover {
+  background: rgba(255, 255, 255, 0.15);
+  color: #f1f5f9;
+  transform: scale(1.1);
+}
+
+/* ==========================================
+   BARRA DE PROGRESSO
+   ========================================== */
+.toast-progress {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 3px;
+  border-radius: 0 0 0 12px;
+  animation: progressShrink var(--toast-duration, 3000ms) linear forwards;
+}
+
+/* ==========================================
+   ANIMAÇÕES
+   ========================================== */
+@keyframes toastSlideIn {
+  from { transform: translateX(120%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes toastSlideOut {
+  from { transform: translateX(0); opacity: 1; }
+  to { transform: translateX(120%); opacity: 0; }
+}
+
+@keyframes progressShrink {
+  from { width: 100%; }
+  to { width: 0%; }
+}
+
+@keyframes drawCheck {
+  to { stroke-dashoffset: 0; }
+}
+
+@keyframes iconShake {
+  0%, 100% { transform: translateX(0); }
+  20%, 60% { transform: translateX(-3px); }
+  40%, 80% { transform: translateX(3px); }
+}
+
+/* Mobile animations */
+@media (max-width: 480px) {
+  .toast { animation-name: toastSlideInMobile; }
+  .toast.toast-exiting { animation-name: toastSlideOutMobile; }
+  
+  @keyframes toastSlideInMobile {
+    from { transform: translateY(-100%); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+  }
+  
+  @keyframes toastSlideOutMobile {
+    from { transform: translateY(0); opacity: 1; }
+    to { transform: translateY(-100%); opacity: 0; }
+  }
+}
+
+/* ==========================================
+   HOVER EFFECTS
+   ========================================== */
+.toast:hover .toast-progress {
+  animation-play-state: paused;
+}
+
+.toast:hover {
+  transform: translateX(-5px);
+  box-shadow: 
+    0 15px 50px rgba(0, 0, 0, 0.5),
+    0 0 0 1px rgba(255, 255, 255, 0.1);
+}
+
+/* Limitar toasts visíveis */
+.toast-container .toast:nth-child(n+5) {
+  display: none;
+}

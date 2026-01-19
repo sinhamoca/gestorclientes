@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard Financeiro | Gestão de Clientes</title>
+  
+  <!-- Favicon -->
+  <link rel="icon" type="image/x-icon" href="./favicon.ico">
+  
+  <!-- React -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  
+  <style>
+    * {
+      font-family: 'Inter', sans-serif;
+    }
+    
+    body {
+      background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
+      min-height: 100vh;
+    }
+    
+    /* Background animado */
+    .bg-lines {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-image: 
+        linear-gradient(rgba(59, 130, 246, 0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(59, 130, 246, 0.03) 1px, transparent 1px);
+      background-size: 50px 50px;
+      pointer-events: none;
+    }
+    
+    /* Cards com gradiente */
+    .gradient-card-green {
+      background: linear-gradient(135deg, #059669 0%, #10b981 100%);
+    }
+    
+    .gradient-card-blue {
+      background: linear-gradient(135deg, #2563eb 0%, #3b82f6 100%);
+    }
+    
+    .gradient-card-purple {
+      background: linear-gradient(135deg, #7c3aed 0%, #8b5cf6 100%);
+    }
+    
+    .gradient-card-red {
+      background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%);
+    }
+    
+    .gradient-card-yellow {
+      background: linear-gradient(135deg, #d97706 0%, #f59e0b 100%);
+    }
+    
+    .gradient-card-indigo {
+      background: linear-gradient(135deg, #4f46e5 0%, #6366f1 100%);
+    }
+    
+    .gradient-card-teal {
+      background: linear-gradient(135deg, #0d9488 0%, #14b8a6 100%);
+    }
+    
+    /* Hover effects */
+    .stat-card-hover {
+      transition: all 0.3s ease;
+    }
+    
+    .stat-card-hover:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+    }
+    
+    /* Nav buttons */
+    .nav-btn {
+      background: rgba(30, 41, 59, 0.8);
+      border: 1px solid rgba(71, 85, 105, 0.5);
+      color: #e2e8f0;
+      padding: 0.5rem 1rem;
+      border-radius: 0.5rem;
+      transition: all 0.2s;
+    }
+    
+    .nav-btn:hover {
+      background: rgba(51, 65, 85, 0.8);
+      border-color: rgba(100, 116, 139, 0.7);
+    }
+    
+    .nav-btn.active {
+      background: linear-gradient(135deg, #2563eb 0%, #3b82f6 100%);
+      border-color: #3b82f6;
+    }
+    
+    /* Tables */
+    .table-dark {
+      background: rgba(15, 23, 42, 0.6);
+      border-radius: 1rem;
+      overflow: hidden;
+    }
+    
+    .table-dark thead {
+      background: rgba(30, 41, 59, 0.8);
+    }
+    
+    .table-dark tbody tr {
+      border-bottom: 1px solid rgba(51, 65, 85, 0.5);
+      transition: background 0.2s;
+    }
+    
+    .table-dark tbody tr:hover {
+      background: rgba(30, 41, 59, 0.5);
+    }
+    
+    /* Badges */
+    .badge-success {
+      background: rgba(16, 185, 129, 0.2);
+      color: #34d399;
+    }
+    
+    .badge-error {
+      background: rgba(239, 68, 68, 0.2);
+      color: #f87171;
+    }
+    
+    .badge-warning {
+      background: rgba(245, 158, 11, 0.2);
+      color: #fbbf24;
+    }
+    
+    .badge-info {
+      background: rgba(59, 130, 246, 0.2);
+      color: #60a5fa;
+    }
+    
+    /* Loader */
+    .loader {
+      width: 40px;
+      height: 40px;
+      border: 3px solid rgba(59, 130, 246, 0.3);
+      border-top-color: #3b82f6;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+    
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    
+    /* Scrollbar */
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+    
+    ::-webkit-scrollbar-track {
+      background: #1e293b;
+    }
+    
+    ::-webkit-scrollbar-thumb {
+      background: #475569;
+      border-radius: 4px;
+    }
+    
+    ::-webkit-scrollbar-thumb:hover {
+      background: #64748b;
+    }
+    
+    /* Select styles */
+    select {
+      background: rgba(30, 41, 59, 0.8);
+      border: 1px solid rgba(71, 85, 105, 0.5);
+      color: #e2e8f0;
+    }
+    
+    select:focus {
+      outline: none;
+      border-color: #3b82f6;
+    }
+    
+    /* Progress bar */
+    .progress-bar {
+      height: 8px;
+      background: rgba(51, 65, 85, 0.5);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    
+    .progress-fill {
+      height: 100%;
+      border-radius: 4px;
+      transition: width 0.5s ease;
+    }
+    
+    /* Chart placeholder */
+    .chart-container {
+      background: rgba(30, 41, 59, 0.5);
+      border: 1px solid rgba(71, 85, 105, 0.3);
+      border-radius: 1rem;
+    }
+  </style>
+</head>
+<body>
+  <!-- Background animado -->
+  <div class="bg-lines"></div>
+  
+  <div id="root" class="relative z-10"></div>
+
+  <!-- Configurações -->
+  <script src="./js/config.js"></script>
+  
+  <!-- API Client -->
+  <script src="./js/api.js"></script>
+  
+  <!-- Página Financeira -->
+  <script src="./js/components/FinancialPage.js" type="text/babel"></script>
+
+  <!-- Inicialização -->
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+
+    function AuthWrapper() {
+      const [isAuthenticated, setIsAuthenticated] = useState(false);
+      const [loading, setLoading] = useState(true);
+
+      useEffect(() => {
+        checkAuth();
+        // Inicializar ícones Lucide
+        if (window.lucide) {
+          window.lucide.createIcons();
+        }
+      }, []);
+
+      const checkAuth = async () => {
+        const token = localStorage.getItem(STORAGE_KEYS.TOKEN);
+        
+        if (!token) {
+          window.location.href = '/';
+          return;
+        }
+
+        try {
+          await api.getMe();
+          setIsAuthenticated(true);
+        } catch (error) {
+          console.error('Auth failed:', error);
+          window.location.href = '/';
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      if (loading) {
+        return (
+          <div className="min-h-screen flex items-center justify-center">
+            <div className="text-center">
+              <div className="loader mx-auto mb-4"></div>
+              <p className="text-slate-400">Verificando autenticação...</p>
+            </div>
+          </div>
+        );
+      }
+
+      if (!isAuthenticated) {
+        return null;
+      }
+
+      return <FinancialPage />;
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<AuthWrapper />);
+  </script>
+</body>
+</html>
