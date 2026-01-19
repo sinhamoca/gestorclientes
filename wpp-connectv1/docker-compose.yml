@@ -1,0 +1,129 @@
+version: '3.8'
+
+services:
+  # ==========================================
+  # WhatsApp Service (API) - VERSÃO CORRIGIDA
+  # ==========================================
+  whatsapp-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: whatsapp_service
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=production
+      - TZ=America/Sao_Paulo
+    ports:
+      - "${PORT:-9000}:9000"
+    
+    # ========== VOLUMES - PERSISTÊNCIA GARANTIDA ==========
+    volumes:
+      # 🔥 CRÍTICO: Sessões persistentes (tokens WhatsApp)
+      - whatsapp_sessions:/app/sessions
+
+      
+      # Logs persistentes
+      - ./logs:/app/logs
+      
+      # 🆕 Cache do Puppeteer (Chrome) - evita re-download
+      - puppeteer_cache:/app/.cache/puppeteer
+    
+    # ========== RESTART POLICY ==========
+    restart: unless-stopped
+    
+    # ========== REDE ==========
+    networks:
+      - shared_network
+    
+    # ========== RECURSOS - AJUSTADOS PARA 10+ INSTÂNCIAS ==========
+    deploy:
+      resources:
+        limits:
+          cpus: '3.0'      # ✅ Usar todos os 3 cores
+          memory: 4G       # ✅ Aumentado de 2G para 4G
+        reservations:
+          cpus: '1.0'
+          memory: 1G       # ✅ Aumentado de 512M
+    
+    # ========== HEALTH CHECK ==========
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    
+    # ========== LABELS PARA WATCHTOWER (RESTART AUTOMÁTICO) ==========
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+      - "com.centurylinklabs.watchtower.lifecycle.pre-stop=docker exec whatsapp_service node -e 'console.log(\"Saving sessions before restart...\")'"
+
+  # ==========================================
+  # Dashboard Admin (Frontend)
+  # ==========================================
+  wpp-dashboard:
+    image: nginx:alpine
+    container_name: wpp_dashboard
+    volumes:
+      - ./wpp-dashboard:/usr/share/nginx/html:ro
+      - ./wpp-dashboard-nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    ports:
+      - "9001:80"
+    restart: unless-stopped
+    networks:
+      - shared_network
+    environment:
+      - TZ=America/Sao_Paulo
+    depends_on:
+      - whatsapp-service
+  
+  # ==========================================
+  # 🆕 WATCHTOWER - RESTART AUTOMÁTICO SEMANAL
+  # ==========================================
+  watchtower:
+    image: containrrr/watchtower
+    container_name: wpp_watchtower
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      # Restart apenas containers com label específico
+      - WATCHTOWER_LABEL_ENABLE=true
+      
+      # Agenda: Domingo às 03:00 (horário de baixo uso)
+      - WATCHTOWER_SCHEDULE=0 0 3 * * 0
+      
+      # Limpar imagens antigas
+      - WATCHTOWER_CLEANUP=true
+      
+      # Apenas reiniciar, não atualizar imagens
+      - WATCHTOWER_NO_PULL=false
+      
+      # Notificações (opcional)
+      - WATCHTOWER_NOTIFICATIONS=shoutrrr
+      - WATCHTOWER_NOTIFICATION_URL=${WATCHTOWER_NOTIFICATION_URL:-}
+      
+      # Timezone
+      - TZ=America/Sao_Paulo
+    restart: unless-stopped
+    networks:
+      - shared_network
+
+# ==========================================
+# VOLUMES - PERSISTÊNCIA GARANTIDA
+# ==========================================
+volumes:
+  # 🔥 CRÍTICO: Sessions do WhatsApp (gerenciado pelo Docker)
+  whatsapp_sessions:
+    driver: local
+  
+  # Cache do Puppeteer (gerenciado pelo Docker)
+  puppeteer_cache:
+    driver: local
+
+# ==========================================
+# REDES
+# ==========================================
+networks:
+  shared_network:
+    external: true

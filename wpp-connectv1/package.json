@@ -1,0 +1,30 @@
+{
+  "name": "whatsapp-service",
+  "version": "1.0.0",
+  "description": "Serviço independente de WhatsApp com WPPConnect",
+  "main": "src/server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "test": "node test.js"
+  },
+  "keywords": [
+    "whatsapp",
+    "wppconnect",
+    "api"
+  ],
+  "author": "Isaac",
+  "license": "MIT",
+  "dependencies": {
+    "@wppconnect-team/wppconnect": "^1.30.0",
+    "chalk": "^5.6.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "inquirer": "^9.3.8",
+    "node-fetch": "^3.3.2",
+    "ora": "^7.0.1",
+    "winston": "^3.11.0"
+  }
+}
